@@ -1,0 +1,85 @@
+def get_caption_value(worker_idx=None):
+    """
+    Trả về 1 caption theo lựa chọn:
+    - default:  1 câu mặc định ngắn gọn
+    - random:   bốc ngẫu nhiên từ danh sách ô Text
+    - byline:   lấy lần lượt từng dòng (nhiều thiết bị/lần post sẽ vòng tròn)
+    """
+    mode = caption_mode_var.get()
+    lines = _read_caption_lines()
+    if mode == "random" and lines:
+        import random
+        return random.choice(lines)
+    if mode == "byline" and lines:
+        global _caption_line_pos
+        if worker_idx is not None:
+            return lines[worker_idx % len(lines)]
+        value = lines[_caption_line_pos % len(lines)]
+        _caption_line_pos += 1
+        return value
+    return "Hello Instagram! #firstpost"
+
+# ======= Tạo 100 caption ngắn =======
+def generate_captions_to_text(n=100):
+    """Sinh n caption ngắn & ghi vào caption_text_widget (mỗi dòng một caption)."""
+    if caption_text_widget is None:
+        return
+    starts = [
+        "Ngày mới","Một chút","Chill nhẹ","Hôm nay","Cuối tuần","Vibes","Tới công chuyện",
+        "Đi thôi","Đơn giản","Nhỏ thôi","Tự thưởng","Thứ hai","Thứ sáu","Buổi sáng",
+        "Buổi tối","Lặng lẽ","Xíu xiu","Năng lượng","Thảnh thơi","Góc nhỏ"
+    ]
+    verbs = [
+        "bắt đầu","thư giãn","lên đường","tận hưởng","cố gắng","cười lên","nghỉ ngơi",
+        "cháy hết mình","giữ nhịp","chậm lại","tập trung","lan toả","sạc pin","quay lại",
+        "khai mở","refresh","check-in","đổi gió","tĩnh tâm","giữ lửa"
+    ]
+    endings = [
+        "thôi nào","xíu nhé","nhẹ nhàng","cho vui","đủ rồi","vậy thôi","mãi đỉnh",
+        "vì mình xứng đáng","một mình cũng vui","thế là đủ","hết sảy","đúng bài",
+        "đẹp quá","ổn áp","okela","lên luôn","được phết","đi thôi","khỏe re","chill phết"
+    ]
+    emojis = ["✨","🌤️","🌿","🌊","☕","💫","📸","🧋","🍀","🧘","🌙","🔥","🌈","🎧","🌻","🪴","🥤","📖","💭","😌"]
+    hash1  = ["#vibes","#chill","#today","#goodday","#simple","#instagood","#mood","#daily","#minimal","#happy"]
+    hash2  = ["#selfcare","#lifestyle","#photo","#moment","#relax","#energy","#focus","#reset","#motivation","#dayone"]
+
+    seen, caps, tries = set(), [], 0
+    while len(caps) < n and tries < n*10:
+        tries += 1
+        s, v, e = random.choice(starts), random.choice(verbs), random.choice(endings)
+        em1 = random.choice(emojis) if random.random() < 0.8 else ""
+        em2 = random.choice(emojis) if random.random() < 0.4 else ""
+        hs = ""
+        if random.random() < 0.6:
+            hs_list = [random.choice(hash1)]
+            if random.random() < 0.5:
+                hs_list.append(random.choice(hash2))
+            hs = " " + " ".join(hs_list)
+        cap = " ".join(x for x in [em1, s, v, e + ".", em2] if x).strip()
+        cap = (cap + " " + hs).strip()
+        if cap not in seen:
+            seen.add(cap); caps.append(cap)
+    caption_text_widget.delete("1.0", "end")
+    caption_text_widget.insert("1.0", "\n".join(caps))
+
+# ===== Caption UI =====
+cap_frame = ttk.LabelFrame(phone_settings, text="Caption Options")
+cap_frame.pack(fill="x", padx=PHONE_PADX, pady=(2, PHONE_PADY))
+
+ttk.Radiobutton(cap_frame, text="Caption mặc định",
+                variable=caption_mode_var, value="default").grid(row=0, column=0, sticky="w", padx=10, pady=2)
+ttk.Radiobutton(cap_frame, text="Ngẫu nhiên",
+                variable=caption_mode_var, value="random").grid(row=1, column=0, sticky="w", padx=10, pady=2)
+ttk.Radiobutton(cap_frame, text="Từng dòng",
+                variable=caption_mode_var, value="byline").grid(row=2, column=0, sticky="w", padx=10, pady=2)
+
+caption_text_widget = tk.Text(cap_frame, width=34, height=8, wrap="word")
+caption_text_widget.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=(6,6))
+caption_text_widget.insert("1.0", "Hello IG! 👋\nNew day, new vibe 🌤️\nLife is good.\n#firstpost #instagood")
+
+# Nút tạo 100 caption
+ttk.Button(cap_frame, text="Tạo caption ngắn",
+           command=lambda: generate_captions_to_text(200))\
+    .grid(row=4, column=0, sticky="w", padx=10, pady=(0,6))
+
+cap_frame.columnconfigure(0, weight=1)

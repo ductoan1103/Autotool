@@ -1,0 +1,11 @@
+{
+  "ava_folder_path": "C:/Users/MINH/Desktop/Script Tool/AUTO/AutoInstaGram/Tool/ava",
+  "chrome_path": "C:/Users/MINH/Desktop/Script Tool/AUTO/AutoInstaGram/Tool/chrome-win/chrome-win\\chrome.exe",
+  "save_format": [
+    "Username",
+    "Pass",
+    "Mail",
+    "Cookie",
+    "2FA"
+  ]
+}

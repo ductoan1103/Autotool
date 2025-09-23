@@ -1,0 +1,23 @@
+{
+  "device_id": "33008a430e2ca375",
+  "token_info": {
+    "access_token": "IGT:2:936619743392459:77231320408:56e1834e0398a071a8ef9bc59a306e12b3fbbfa6511",
+    "app_id": "936619743392459",
+    "user_id": "77231320408",
+    "username": "instagram_user",
+    "success": true,
+    "error": "",
+    "method": "generated",
+    "expires_at": "1758628717",
+    "permissions": [
+      "user_profile",
+      "user_media"
+    ]
+  },
+  "bearer_format": "Bearer IGT:2:936619743392459:77231320408:56e1834e0398a071a8ef9bc59a306e12b3fbbfa6511",
+  "api_examples": {
+    "profile": "https://graph.instagram.com/me?fields=id,username",
+    "media": "https://graph.instagram.com/me/media",
+    "posts": "https://graph.instagram.com/{media-id}"
+  }
+}
