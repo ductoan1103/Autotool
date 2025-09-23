@@ -1769,15 +1769,7 @@ class AndroidWorker(threading.Thread):
                 live_count += 1
                 live_var.set(str(live_count))
                 update_rate()
-                log("✅ Live — insert & lưu")
-                
-                # Insert vào TreeView cho Live
-                try:
-                    app.after(0, lambda: insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=""))
-                except Exception:
-                    insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code="")
-                
-                log("✅ Đã insert Live lên TreeView")
+                log("✅ Live — chỉ đếm, chưa insert lên TreeView")
             else:
                 die_count += 1
                 die_var.set(str(die_count))
@@ -1795,6 +1787,24 @@ class AndroidWorker(threading.Thread):
                     f.write(f"{username_safe}|{password}|{email}|{current_cookie}|\n")
                 log("💾 Đã lưu Die.txt")
                 log("✅ Đã insert Die lên TreeView")
+
+                # Bật chế độ máy bay và tự chạy lại phiên mới
+                try:
+                    adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                    adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                    adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                    adb_shell(self.udid, "svc", "wifi", "disable")
+                    adb_shell(self.udid, "svc", "data", "disable")
+                    log("🛫 Đã bật Chế độ máy bay (Die)")
+                except Exception as e:
+                    log(f"⚠️ Lỗi khi bật Chế độ máy bay (Die): {e}")
+
+                # Tự chạy lại toàn bộ flow như lúc ấn START
+                try:
+                    log("🔄 Đang tự chạy lại toàn bộ flow như lúc ấn START...")
+                    app.after(0, start_process)
+                except Exception as e:
+                    log(f"⚠️ Lỗi khi tự chạy lại flow START: {e}")
     
         except Exception as e:
             log(f"⚠️ Lỗi khi check live/die: {e}")
@@ -1854,6 +1864,13 @@ class AndroidWorker(threading.Thread):
                 log("💾 Đã lưu thông tin vào 'Live.txt'")
             except Exception as e:
                 log(f"❌ Lỗi khi lưu Live.txt: {repr(e)}")
+
+            # --- Tự động chạy lại toàn bộ flow như lúc ấn START sau khi lưu Live ---
+            try:
+                log("🔄 Đang tự chạy lại toàn bộ flow như lúc ấn START (Live)...")
+                app.after(0, start_process)
+            except Exception as e:
+                log(f"⚠️ Lỗi khi tự chạy lại flow START (Live): {e}")
 
         except Exception as e:
             log(f"⚠️ Lỗi khi insert/lưu Live: {e}")
