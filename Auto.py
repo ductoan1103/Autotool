@@ -1,3 +1,78 @@
+# ...existing code...
+# ...existing code...
+def save_config():
+    # Lấy config hiện tại (nếu có)
+    try:
+        with open('config.json', 'r', encoding='utf-8') as f:
+            config = json.load(f)
+    except Exception:
+        config = {}
+
+    # Lưu các giá trị UI hiện tại
+    try:
+        config['phone_net_mode'] = phone_net_mode.get()
+    except Exception:
+        pass
+    try:
+        config['proxy_format_var'] = proxy_format_var.get()
+    except Exception:
+        pass
+    try:
+        config['phone_ig_app_var'] = phone_ig_app_var.get()
+    except Exception:
+        pass
+
+    # ...các config khác nếu có...
+
+    # Ghi lại file config.json
+    with open('config.json', 'w', encoding='utf-8') as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+# ...existing code...
+
+# ...existing code...
+# Sau khi đã khởi tạo các biến UI liên quan đến Phone Settings:
+# phone_net_mode = tk.StringVar(...)
+# proxy_format_var = tk.StringVar(...)
+# phone_ig_app_var = tk.StringVar(...)
+try:
+    phone_net_mode.trace_add('write', lambda *args: save_config())
+except Exception:
+    pass
+
+try:
+    phone_ig_app_var.trace_add('write', lambda *args: save_config())
+except Exception:
+    pass
+
+# ...existing code...
+
+# ======================= Load config cho Phone Settings UI =======================
+# Đặt đoạn này SAU khi đã định nghĩa load_config và các biến UI liên quan
+def apply_phone_settings_from_config():
+    config = load_config()
+    # Network Mode
+    if 'phone_net_mode' in config:
+        try:
+            phone_net_mode.set(config['phone_net_mode'])
+        except Exception:
+            pass
+    # Proxy Type
+    if 'proxy_format_var' in config:
+        try:
+            proxy_format_var.set(config['proxy_format_var'])
+        except Exception:
+            pass
+    # IG App
+    if 'phone_ig_app_var' in config:
+        try:
+            phone_ig_app_var.set(config['phone_ig_app_var'])
+        except Exception:
+            pass
+
+# ...existing code...
+# Gọi hàm này sau khi đã khởi tạo các biến UI liên quan đến Phone Settings
+# apply_phone_settings_from_config()
+
 import tkinter as tk
 from PIL import Image, ImageTk
 from tkinter import scrolledtext
@@ -17,7 +92,7 @@ import base64
 import names
 import subprocess, re, xml.etree.ElementTree as ET
 import random
-import configparser
+## import configparser (loại bỏ)
 import string
 import os
 from unidecode import unidecode
@@ -521,7 +596,7 @@ class AndroidWorker(threading.Thread):
                             self.log("⛔ Proxy.txt rỗng hoặc không đọc được.")
                             return
                         info = parse_proxy(line)  # {ip, port, user, pwd, has_auth}
-                        fmt = phone_proxy_format_var.get() if "phone_proxy_format_var" in globals() else "ip_port"
+                        fmt = proxy_format_var.get() if "proxy_format_var" in globals() else "ip_port"
 
                         if fmt == "ip_port":
                             if not info["ip"] or not info["port"]:
@@ -2248,33 +2323,48 @@ def get_bio_text(context: str = "auto"):
     # fallback
     return DEFAULT_BIO
 
-# --- Lưu config ---
+
+# --- Lưu & Load config (dùng 1 file config.json) ---
+CONFIG_FILE = "config.json"
 def save_config():
     cfg = {
-        "ava_folder_path": ava_folder_path,
-        "chrome_path": chrome_path,
-        "save_format": save_format
+        "ava_folder_path": globals().get("ava_folder_path", ""),
+        "chrome_path": globals().get("chrome_path", ""),
+        "save_format": globals().get("save_format", ""),
+        "photo_folder_phone": globals().get("photo_folder_phone", ""),
+        "ig_app_choice": globals().get("phone_ig_app_var", tk.StringVar(value="instagram")).get(),
+        "scrcpy_path": globals().get("scrcpy_path", "")
     }
-    with open("config.json", "w", encoding="utf-8") as f:
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
-# --- Load config ---
 def load_config():
-    global ava_folder_path, chrome_path, save_format
-    config_file = "config.json"
+    global ava_folder_path, chrome_path, save_format, photo_folder_phone, scrcpy_path
+    config_file = CONFIG_FILE
     if os.path.exists(config_file):
         try:
             with open(config_file, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
                 ava_folder_path = cfg.get("ava_folder_path", "")
                 chrome_path = cfg.get("chrome_path", "")
-                save_format = cfg.get("save_format", save_format)
+                save_format = cfg.get("save_format", "")
+                photo_folder_phone = cfg.get("photo_folder_phone", "")
+                scrcpy_path = cfg.get("scrcpy_path", "")
+                if "ig_app_choice" in cfg:
+                    try:
+                        phone_ig_app_var.set(cfg["ig_app_choice"])
+                    except Exception:
+                        pass
                 if ava_folder_path:
                     log(f"📂 Đã load thư mục ảnh: {ava_folder_path}")
                 if chrome_path:
                     log(f"🌐 Đã load Chrome: {chrome_path}")
-        except:
-            log("⚠ Không load được config.json")
+                if photo_folder_phone:
+                    log(f"📂 Đã load folder ảnh (Phone): {photo_folder_phone}")
+                if scrcpy_path:
+                    _log_scrcpy_path(scrcpy_path)
+        except Exception as e:
+            log(f"⚠ Không load được config.json: {e}")
 
 def _log_scrcpy_path(p: str):
     # log path rút gọn cho gọn UI
@@ -2285,22 +2375,11 @@ def _log_scrcpy_path(p: str):
     log(f"🧭 scrcpy path: {short}")
 
 def load_scrcpy_config():
-    global scrcpy_path
-    if os.path.exists(INI_FILE):
-        scrcpy_cfg.read(INI_FILE, encoding="utf-8")
-        scrcpy_path = scrcpy_cfg.get("scrcpy", "path", fallback="")
-        _log_scrcpy_path(scrcpy_path)  # <-- thêm dòng này
+    load_config()
 
 def save_scrcpy_config():
-    if not scrcpy_cfg.has_section("scrcpy"):
-        scrcpy_cfg.add_section("scrcpy")
-    scrcpy_cfg.set("scrcpy", "path", scrcpy_path or "")
-    with open(INI_FILE, "w", encoding="utf-8") as f:
-        scrcpy_cfg.write(f)
-    _log_scrcpy_path(scrcpy_path)
+    save_config()
 
-INI_FILE = "config.ini"
-scrcpy_cfg = configparser.ConfigParser()
 scrcpy_path = ""
 
 # ====== insert tree ======
@@ -4996,7 +5075,6 @@ except NameError:
 
 # ====== ĐƯỜNG DẪN & CẤU HÌNH ======
 PROXY_TXT  = os.path.join(os.getcwd(), "Proxy.txt")
-CONFIG_INI = "config.ini"
 
 # ============= WRAPPER đặt bằng .place =============
 phone_settings_wrap = tk.Frame(app, bg="white")
@@ -5095,16 +5173,22 @@ for txt, val in [("WiFi", "wifi"), ("WARP", "warp"), ("Proxy", "proxy"), ("SIM 4
        .pack(anchor="w", padx=10, pady=2)
 
 # ======================= Proxy Type =======================
-phone_proxy_format_var = tk.StringVar(value="ip_port")
+proxy_format_var = tk.StringVar(value="ip_port")
+
+# Đặt trace_add sau khi khởi tạo biến proxy_format_var
+try:
+    proxy_format_var.trace_add('write', lambda *args: save_config())
+except Exception:
+    pass
 proxy_format_frame = ttk.LabelFrame(phone_settings, text="Proxy Type")
 proxy_format_frame.pack(fill="x", padx=PHONE_PADX, pady=(2, PHONE_PADY))
 
 ttk.Radiobutton(proxy_format_frame, text="IP:PORT",
-                variable=phone_proxy_format_var, value="ip_port")\
-   .pack(anchor="w", padx=10, pady=2)
+                     variable=proxy_format_var, value="ip_port")\
+    .pack(anchor="w", padx=10, pady=2)
 ttk.Radiobutton(proxy_format_frame, text="IP:PORT:USER:PASS",
-                variable=phone_proxy_format_var, value="ip_port_userpass")\
-   .pack(anchor="w", padx=10, pady=2)
+                     variable=proxy_format_var, value="ip_port_userpass")\
+    .pack(anchor="w", padx=10, pady=2)
 
 # ======================= HANDLERS / CONFIG =======================
 photo_folder_phone = ""
@@ -5135,30 +5219,10 @@ def choose_photo_folder_phone():
         log("⚠️ Chưa chọn folder ảnh (Phone).")
 
 def load_phone_paths():
-    """Load các đường dẫn Phone từ config.ini"""
-    global photo_folder_phone
-    cfg = configparser.ConfigParser()
-    if cfg.read(CONFIG_INI, encoding="utf-8"):
-        photo_folder_phone = cfg.get("Paths", "photo_folder_phone", fallback="")
-        # Lựa chọn IG app:
-        sel = cfg.get("Phone", "ig_app_choice", fallback="instagram")
-        try:
-            phone_ig_app_var.set(sel)
-        except Exception:
-            pass
+    load_config()
 
 def save_phone_paths():
-    """Save đường dẫn + lựa chọn IG app vào config.ini"""
-    cfg = configparser.ConfigParser()
-    cfg.read(CONFIG_INI, encoding="utf-8")
-    if "Paths" not in cfg:
-        cfg["Paths"] = {}
-    if "Phone" not in cfg:
-        cfg["Phone"] = {}
-    cfg["Paths"]["photo_folder_phone"] = photo_folder_phone or ""
-    cfg["Phone"]["ig_app_choice"]      = phone_ig_app_var.get()
-    with open(CONFIG_INI, "w", encoding="utf-8") as f:
-        cfg.write(f)
+    save_config()
 
 def get_random_photo_from_folder():
     folder = globals().get("photo_folder_phone", "")
