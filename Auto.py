@@ -94,6 +94,7 @@ import subprocess, re, xml.etree.ElementTree as ET
 import random
 ## import configparser (loại bỏ)
 import string
+
 import os
 from unidecode import unidecode
 import re
@@ -114,6 +115,9 @@ from appium import webdriver as appium_webdriver
 from appium.options.android import UiAutomator2Options
 from selenium.common.exceptions import WebDriverException
 import socket, shutil
+# Fix for PointerInput and ActionBuilder
+from selenium.webdriver.common.actions.pointer_input import PointerInput
+from selenium.webdriver.common.actions.action_builder import ActionBuilder
 
 # ============================
 # APPIUM SERVER HELPERS
@@ -359,7 +363,38 @@ def adb_media_scan(udid: str | None, remote_file: str):
     ]
     return chay_lenh(cmd)
 
+def tap_xy(d, x: int, y: int) -> bool:
+    try:
+        # Ưu tiên dùng Appium nếu có
+        finger = PointerInput("touch", "finger1")  # sửa TOUCH -> "touch"
+        actions = ActionBuilder(d, mouse=finger)
+        actions.pointer_action.move_to_location(x, y)
+        actions.pointer_action.pointer_down()
+        actions.pointer_action.pause(0.05)
+        actions.pointer_action.pointer_up()
+        actions.perform()
+        return True
+    except Exception:
+        try:
+            # fallback: ADB tap
+            udid = None
+            if 'active_sessions' in globals():
+                for k, v in active_sessions.items():
+                    if v == d:
+                        udid = k
+                        break
+            if udid:
+                subprocess.call([ADB_BIN, "-s", udid, "shell", "input", "tap", str(x), str(y)])
+                return True
+        except Exception as e2:
+            log(f"⚠️ Tap lỗi (ADB cũng fail): {e2}")
+        return False
+
 # ======================== WARP PHONE =====================================
+
+# Fix for ADB_BIN and active_sessions
+ADB_BIN = "adb"  # or set to your adb path if needed
+active_sessions = {}  # {udid: driver}
 
 device_state = {}   # {udid: {"view": bool, "pick": bool}}
 phone_device_tree = None  # sẽ gán sau khi tạo Treeview trong UI
@@ -464,9 +499,33 @@ def open_scrcpy_for_list(udid_list: list[str]):
     if not scrcpy_path and not shutil.which("scrcpy"):
         log("⚠️ Chưa chọn scrcpy.exe và scrcpy không có trong PATH. Bấm 'Chọn scrcpy.exe'.")
         return
+    def is_scrcpy_running_for_udid(udid):
+        # Check if a scrcpy process is running for this udid
+        try:
+            import psutil
+        except ImportError:
+            log("⚠️ Thiếu thư viện psutil. Đang cài đặt...")
+            import subprocess as sp
+            sp.check_call([sys.executable, "-m", "pip", "install", "psutil"])
+            import psutil
+        for proc in psutil.process_iter(['name', 'cmdline']):
+            try:
+                if proc.info['name'] and 'scrcpy' in proc.info['name'].lower():
+                    cmdline = proc.info.get('cmdline') or []
+                    # Check for -s <udid> in command line
+                    for i, arg in enumerate(cmdline):
+                        if arg == '-s' and i+1 < len(cmdline) and cmdline[i+1] == udid:
+                            return True
+            except Exception:
+                continue
+        return False
+
     for ud in udid_list:
-        subprocess.Popen([exe, "-s", ud], creationflags=0)
-        log(f"🖥️ Mở scrcpy cho {ud}")
+        if is_scrcpy_running_for_udid(ud):
+            log(f"🖥️ scrcpy đã chạy cho {ud}, bỏ qua không mở thêm.")
+        else:
+            subprocess.Popen([exe, "-s", ud], creationflags=0)
+            log(f"🖥️ Mở scrcpy cho {ud}")
 
 def read_first_proxy_line_fixed() -> str | None:
     try:
@@ -1844,7 +1903,7 @@ class AndroidWorker(threading.Thread):
                 live_count += 1
                 live_var.set(str(live_count))
                 update_rate()
-                log("✅ Live — chỉ đếm, chưa insert lên TreeView")
+                log("✅ Live — chỉ đếm, không insert/lưu")
             else:
                 die_count += 1
                 die_var.set(str(die_count))
@@ -1885,70 +1944,206 @@ class AndroidWorker(threading.Thread):
             log(f"⚠️ Lỗi khi check live/die: {e}")
         time.sleep(3)
 
-        # ============================ Sau này thêm các bước Up ava, Follow , ..... =========================
-        # =======================
-        # ===================================================================================================
-
-
-        # 👉 Sau khi đăng bài xong: bật Chế độ máy bay
+        # === BƯỚC BẬT 2FA ===
         try:
-            adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
-            adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE" , "--ez", "state", "true")
-            adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED" , "--ez", "state", "true")
-            adb_shell(self.udid, "svc", "wifi", "disable")
-            adb_shell(self.udid, "svc", "data", "disable")
-            log("🛫 Đã bật Chế độ máy bay.")
-        except Exception as e:
-            log(f"⚠️ Lỗi khi bật Chế độ máy bay: {e}")
-
-        # ==== INSERT & LƯU NICK LIVE ====
-        try:
-            username_safe = (locals().get("username")
-                            or getattr(self, "username", "")
-                            or "")
-            # Sử dụng cookie đã lấy được từ phần trước
-            current_cookie = cookie_str if 'cookie_str' in locals() and cookie_str else ""
-            
-            # 2FA mặc định rỗng (vì chưa có 2FA trong flow này)
-            two_fa_code = ""
-
-            # --- INSERT lên TreeView ---
+            d = self.driver
+            udid = self.udid if hasattr(self, 'udid') else None
+            wait = WebDriverWait(d, 15)
+            # 2) Tap menu ba gạch (tọa độ góc trên phải)
             try:
-                app.after(0, lambda: insert_to_tree(
-                    "Live", username_safe, password, email, current_cookie, two_fa_code=two_fa_code
-                ))
+                size = d.get_window_size()
+                x = int(size["width"] * 0.95)
+                y = int(size["height"] * 0.08)
+                d.tap([(x, y)])
+                log(f"✅ Tap menu 3 gạch bằng tọa độ ({x},{y})")
+            except Exception as e:
+                log(f"⚠️ Không tap được menu 3 gạch: {e}")
+                return
+            time.sleep(4)
+            # 3) Tap Accounts Center
+            opened = False
+            for txt in ["Accounts Center", "Trung tâm tài khoản"]:
+                try:
+                    el = wait.until(EC.element_to_be_clickable((AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")')))
+                    el.click()
+                    log(f"✅ Vào {txt}")
+                    opened = True
+                    break
+                except Exception:
+                    continue
+            if not opened:
+                try:
+                    d.find_element(AppiumBy.ID, "com.instagram.android:id/row_profile_header_textview_title").click()
+                    log(f"✅ Tap Accounts Center bằng ID")
+                    opened = True
+                except Exception:
+                    pass
+            if not opened:
+                log(f"⚠️ Không thấy mục Accounts Center.")
+                return
+            time.sleep(4)
+            # 4) Cuộn xuống và tìm "Password and security"
+            found_pwd = False
+            try:
+                el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(new UiSelector().textContains("Password and security"))')
+                if el:
+                    el.click()
+                    log(f"✅ Vào Password and security")
+                    found_pwd = True
             except Exception:
-                insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=two_fa_code)
-
-            log("✅ Đã insert Live lên TreeView")
-
-            # --- Lưu vào Live.txt (không có token) ---
+                try:
+                    size = d.get_window_size()
+                    for _ in range(5):
+                        d.swipe(size["width"]//2, int(size["height"]*0.8), size["width"]//2, int(size["height"]*0.25), 300)
+                        time.sleep(0.4)
+                        if d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Password and security")'):
+                            d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Password and security")').click()
+                            log(f"✅ Vào Password and security (swipe fallback)")
+                            found_pwd = True
+                            break
+                except Exception:
+                    pass
+            if not found_pwd:
+                log(f"⚠️ Không tìm thấy mục Password and security.")
+                return
+            time.sleep(4)
+            # 5) Two-factor authentication
+            for txt in ["Two-factor authentication", "Xác thực 2 yếu tố"]:
+                try:
+                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
+                    log(f"✅ Vào {txt}")
+                    break
+                except Exception:
+                    continue
+            time.sleep(4)
+            # 5) Chọn tài khoản trong Two-factor authentication
             try:
-                info_map = {
-                    "Username": username_safe,
-                    "Pass": password,
-                    "Mail": email,
-                    "Cookie": current_cookie,
-                    "2FA": two_fa_code
-                }
-                fields = save_format if ('save_format' in globals() and isinstance(save_format, (list, tuple)) and save_format) \
-                        else ["Username","Pass","Mail","Cookie","2FA"]
-                line = "|".join([info_map.get(field, "") for field in fields])
-                with open("Live.txt", "a", encoding="utf-8") as f:
-                    f.write(line + "\n")
-                log("💾 Đã lưu thông tin vào 'Live.txt'")
-            except Exception as e:
-                log(f"❌ Lỗi khi lưu Live.txt: {repr(e)}")
-
-            # --- Tự động chạy lại toàn bộ flow như lúc ấn START sau khi lưu Live ---
+                el = wait.until(EC.element_to_be_clickable((AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Instagram")')))
+                el.click()
+                log(f"✅ Chọn account Instagram để bật 2FA")
+            except Exception:
+                log(f"⚠️ Không chọn được account Instagram.")
+                return
+            time.sleep(4)
+            # 6) Chọn phương thức Authentication app
             try:
-                log("🔄 Đang tự chạy lại toàn bộ flow như lúc ấn START (Live)...")
-                app.after(0, start_process)
-            except Exception as e:
-                log(f"⚠️ Lỗi khi tự chạy lại flow START (Live): {e}")
+                el = wait.until(EC.element_to_be_clickable((AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Authentication app")')))
+                el.click()
+                log(f"✅ Chọn phương thức Authentication app")
+            except Exception:
+                log(f"⚠️ Không chọn được Authentication app.")
+                return
+            time.sleep(4)
+            # 7) Ấn Next
+            try:
+                el = wait.until(EC.element_to_be_clickable((AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Next")')))
+                el.click()
+                log(f"✅ Ấn Next để tiếp tục")
+            except Exception:
+                log(f"⚠️ Không ấn được Next.")
+                return
+            time.sleep(4)
+            # 8) Copy key 2FA và lấy từ clipboard
+            secret_key = None
+            try:
+                # Ấn Copy key
+                el = wait.until(EC.element_to_be_clickable(
+                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Copy key")')))
+                el.click()
+                time.sleep(8)
 
+                # Lấy secret từ clipboard
+                secret_key = (d.get_clipboard_text() or "").strip().replace(" ", "")
+                if secret_key:
+                    log(f"🔑 [{udid}] Secret 2FA từ clipboard: {secret_key}")
+                else:
+                    log(f"⚠️ [{udid}] Clipboard trống hoặc không đọc được secret.")
+                    return
+            except Exception as e:
+                log(f"❌ [{udid}] Lỗi lấy secret 2FA: {e}")
+                return
+
+            # 9) Sinh OTP từ secret key
+            try:
+                totp = pyotp.TOTP(secret_key)
+                otp_code = totp.now()
+                log(f"✅ [{udid}] OTP hiện tại: {otp_code}")
+            except Exception as e:
+                log(f"❌ [{udid}] Không sinh được OTP từ secret: {e}")
+                return
+
+            # 10) Ấn Next để sang bước nhập OTP
+            try:
+                el = wait.until(EC.element_to_be_clickable(
+                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Next")')))
+                el.click()
+                log(f"✅ [{udid}] Ấn Next sau khi copy key")
+            except Exception as e:
+                log(f"⚠️ [{udid}] Không ấn được Next: {e}")
+                return
+
+            time.sleep(4)
+
+            # 11) Nhập mã OTP 6 số vào ô "Enter code"
+            try:
+                el = wait.until(EC.element_to_be_clickable(
+                    (AppiumBy.CLASS_NAME, "android.widget.EditText")))
+                el.send_keys(str(otp_code))
+                log(f"✅ [{udid}] Điền mã OTP {otp_code} vào ô Enter code")
+            except Exception as e:
+                log(f"⚠️ [{udid}] Không điền được OTP: {e}")
+                return
+
+            time.sleep(4)
+
+            # 12) Ấn Next
+            try:
+                el = wait.until(EC.element_to_be_clickable(
+                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Next")')))
+                el.click()
+                log(f"✅ [{udid}] Ấn Next để hoàn tất bật 2FA")
+            except Exception as e:
+                log(f"⚠️ [{udid}] Không ấn được Next: {e}")
+                return
+
+            time.sleep(10)
+
+            # 13) Ấn Done để hoàn tất
+            try:
+                el = wait.until(EC.element_to_be_clickable(
+                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Done")')))
+                el.click()
+                log(f"✅ [{udid}] Hoàn tất bật 2FA (ấn Done)")
+            except Exception as e:
+                log(f"⚠️ [{udid}] Không ấn được Done: {e}")
+                return
+
+            time.sleep(1.5)
         except Exception as e:
-            log(f"⚠️ Lỗi khi insert/lưu Live: {e}")
+            log(f"❌ Lỗi bước bật 2FA: {e}")
+
+        # --- Lưu vào Live.txt (nếu là Live, có thể có 2FA) ---
+        try:
+            # Chỉ lưu secret_key vào cột 2FA, nếu không có thì để trống hoàn toàn
+            with open("Live.txt", "a", encoding="utf-8") as f:
+                f.write(f"{username_safe}|{password}|{email}|{current_cookie}|{secret_key if secret_key else ''}\n")
+            log("💾 Đã lưu Live.txt")
+        except Exception as e:
+            log(f"⚠️ Lỗi khi lưu Live.txt: {repr(e)}")
+
+        # --- Insert vào TreeView (nếu là Live, có thể có 2FA) ---
+        try:
+            # Chỉ truyền secret_key vào cột 2FA, nếu không có thì để trống hoàn toàn
+            app.after(0, lambda: insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else ""))
+        except Exception:
+            insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else "")
+
+        # --- Tự động chạy lại toàn bộ flow như lúc ấn START sau khi lưu Live ---
+        try:
+            log("🔄 Đang tự chạy lại toàn bộ flow như lúc ấn START (Live)...")
+            app.after(0, start_process)
+        except Exception as e:
+            log(f"⚠️ Lỗi khi tự chạy lại flow START (Live): {e}")
 
         return True
 
@@ -2388,13 +2583,14 @@ def insert_to_tree(status_text, username, password, email, cookie_str, two_fa_co
         status_tag = "LIVE" if str(status_text).lower() == "live" else "DIE"
         phone_val  = ""  # hoặc lấy từ biến của bạn nếu có
         token_val  = ""  # để trống
-
+        # Đảm bảo chỉ lưu secret key, nếu không có thì để trống
+        two_fa_val = two_fa_code if two_fa_code else ""
         tree.insert(
             "", "end",
             values=(
                 len(tree.get_children())+1,
                 status_text, username, password, email, phone_val, cookie_str,
-                two_fa_code, token_val,
+                two_fa_val, token_val,
                 "127.0.0.1", "NoProxy",
                 "LIVE" if status_tag == "LIVE" else "",
                 "DIE"  if status_tag == "DIE"  else ""
