@@ -1985,12 +1985,12 @@ class AndroidWorker(threading.Thread):
                 except Exception as e:
                     log(f"⚠️ Lỗi khi bật Chế độ máy bay (Die): {e}")
 
-                # Tự chạy lại toàn bộ flow như lúc ấn START
-                try:
-                    log("🔄 Đang tự chạy lại toàn bộ flow như lúc ấn START...")
-                    app.after(0, start_process)
-                except Exception as e:
-                    log(f"⚠️ Lỗi khi tự chạy lại flow START: {e}")
+                # Restart ngay lập tức
+                self.log("🔄 Restart phiên vì Die…")
+                self.stop()
+                time.sleep(3)
+                AndroidWorker(self.udid, log_fn=self.log).start()
+                return
     
         except Exception as e:
             log(f"⚠️ Lỗi khi check live/die: {e}")
@@ -2804,13 +2804,11 @@ class AndroidWorker(threading.Thread):
         except Exception as e:
             log(f"⚠️ Lỗi khi bật Chế độ máy bay (LIVE): {e}")
 
-        # --- Tự động chạy lại toàn bộ flow như lúc ấn START sau khi lưu Live ---
-        try:
-            log("🔄 Đang tự chạy lại toàn bộ flow như lúc ấn START (Live)...")
-            app.after(0, start_process)
-        except Exception as e:
-            log(f"⚠️ Lỗi khi tự chạy lại flow START (Live): {e}")
-
+        # Restart ngay lập tức
+        self.log("🔄 Restart phiên vì Live…")
+        self.stop()
+        time.sleep(3)
+        AndroidWorker(self.udid, log_fn=self.log).start()
         return True
 
     # ================================== SIGNUP – INSTAGRAM LITE ===============================================
