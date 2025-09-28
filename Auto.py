@@ -1870,6 +1870,16 @@ class AndroidWorker(threading.Thread):
         # --- Vào Profile ---
         subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
         log("👤 Đã vào Profile")
+        time.sleep(2)
+
+        # --- Về Home ---
+        subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "100", "1850"])
+        log("👤 Đã về lại Home")
+        time.sleep(2)
+
+        # --- Vào Profile ---
+        subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
+        log("👤 Đã vào Profile")
         time.sleep(5)
 
         # --- Lấy Cookie ---
@@ -2180,15 +2190,6 @@ class AndroidWorker(threading.Thread):
         except Exception:
             insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else "")
         time.sleep(4)
-
-        # --- Lưu vào Live.txt (nếu là Live, có thể có 2FA) ---
-        try:
-            # Chỉ lưu secret_key vào cột 2FA, nếu không có thì để trống hoàn toàn
-            with open("Live.txt", "a", encoding="utf-8") as f:
-                f.write(f"{username_safe}|{password}|{email}|{current_cookie}|{secret_key if secret_key else ''}\n")
-            log("💾 Đã lưu Live.txt")
-        except Exception as e:
-            log(f"⚠️ Lỗi khi lưu Live.txt: {repr(e)}")
         
         # --- Tắt app Instagram ---
         subprocess.call(["adb", "-s", self.udid, "shell", "am", "force-stop", "com.instagram.android"])
@@ -2196,11 +2197,114 @@ class AndroidWorker(threading.Thread):
         time.sleep(3)
 
         # --- Khởi động lại Instagram ---
-        subprocess.call([
-            "adb", "-s", self.udid, "shell", "monkey", "-p", "com.instagram.android", "-c", "android.intent.category.LAUNCHER", "1"
-        ])
+        subprocess.call(["adb", "-s", self.udid, "shell", "monkey", "-p", "com.instagram.android", "-c", "android.intent.category.LAUNCHER", "1"])
         log("🔄 Đã mở lại app Instagram")
         time.sleep(15)  # chờ app load
+
+        # --- Vào Profile ---
+        subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
+        log("👤 Đã vào Profile")
+        time.sleep(5)
+
+        # UP POST 
+        clicked = False
+        # 1. Thử theo resource-id (nút + ở thanh dưới)
+        try:
+            el = d.find_element(AppiumBy.ID, "com.instagram.android:id/creation_tab")
+            el.click()
+            log("✅ Đã nhấn nút + (resource-id=creation_tab, thanh dưới)")
+            clicked = True
+        except Exception:
+            log("❌ Không tìm thấy nút + bằng resource-id")
+
+        # 2. Thử theo content-desc "Create"
+        if not clicked:
+            try:
+                el = d.find_element(
+                    AppiumBy.XPATH,
+                    '//android.widget.LinearLayout[@resource-id="com.instagram.android:id/left_action_bar_buttons"]/android.widget.ImageView'
+                )
+                el.click()
+                log("✅ Đã nhấn nút + ở góc trái")
+                clicked = True
+            except Exception:
+                log("❌ Không tìm thấy nút + bằng content-desc")
+        time.sleep(3)
+        
+        # Kiểm tra xem có mục Post không
+        try:
+            post_el = d.find_element(
+                AppiumBy.XPATH,
+                '//android.widget.TextView[@text="Post"]'
+            )
+            post_el.click()
+            log("✅ Đã nhấn vào mục Post")
+            time.sleep(7)
+        except Exception:
+            log("⚠️ Không tìm thấy mục Post, bỏ qua")
+        
+        # 5. Ấn Next 
+        for _ in range(2):
+            clicked_next = False
+            for txt in ["Next", "Tiếp"]:
+                try:
+                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
+                    clicked_next = True
+                    time.sleep(0.8)
+                    break
+                except Exception:
+                    continue
+            if not clicked_next:
+                break
+        time.sleep(5)
+
+        # 6 Nếu xuất hiện popup "Sharing posts" thì bấm OK
+        try:
+            ok_btn = wait.until(
+                EC.element_to_be_clickable(
+                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
+                )
+            )
+            if ok_btn.is_displayed():
+                ok_btn.click()
+                log(f"ℹ️ [{udid}] Đã bấm OK trong popup Sharing posts.")
+                time.sleep(0.8)
+        except Exception:
+            pass
+        time.sleep(3)
+
+        # 7 Điền caption vào ô "Add a caption..."
+        try:
+            caption = (
+                random.choice(CAPTION_LEADS) + " "
+                + random.choice(CAPTION_TRAILS) + " "
+                + random.choice(CAPTION_EMOJIS)
+            )
+            # Tìm ô nhập caption (thường là EditText đầu tiên)
+            caption_input = d.find_element(AppiumBy.CLASS_NAME, "android.widget.EditText")
+            caption_input.clear()
+            caption_input.send_keys(caption)
+            log(f"✅ Đã điền caption: {caption}")
+            time.sleep(1.5)
+        except Exception as e:
+            log(f"⚠️ Không điền được caption: {e}")
+        time.sleep(3)
+
+        # 8 Ấn Share
+        shared = False
+        for txt in ["Share", "Chia sẻ", "Đăng"]:
+            try:
+                d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
+                shared = True
+                break
+            except Exception:
+                continue
+
+        if shared:
+            log(f"✅ [{udid}] Đã đăng bài mới.")
+        else:
+            log(f"⚠️ [{udid}] Không bấm được nút Share/Chia sẻ.")
+        time.sleep(10)
 
         # --- Vào Profile ---
         subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
@@ -2388,8 +2492,197 @@ class AndroidWorker(threading.Thread):
             except Exception:
                 pass
         time.sleep(13)
+                   
+        # AuTo Follow
+        clicked = False
+        # 1. Thử theo content-desc "Search and explore"
+        try:
+            el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search and explore")
+            el.click()
+            log("✅ Đã nhấn nút kính lúp (Search and explore)")
+            clicked = True
+        except Exception:
+            log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search and explore'")
+
+        # 2. Thử theo content-desc "Search"
+        if not clicked:
+            try:
+                el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search")
+                el.click()
+                log("✅ Đã nhấn nút kính lúp (Search)")
+                clicked = True
+            except Exception:
+                log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search'")
+
+        # 3. Thử bằng UiAutomator textContains
+        if not clicked:
+            try:
+                el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Search")')
+                el.click()
+                log("✅ Đã nhấn nút kính lúp (descriptionContains 'Search')")
+                clicked = True
+            except Exception:
+                log("❌ Không tìm thấy nút kính lúp bằng descriptionContains 'Search'")
+
+        # 4. Thử bằng UiAutomator textContains tiếng Việt
+        if not clicked:
+            try:
+                el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Tìm kiếm")')
+                el.click()
+                log("✅ Đã nhấn nút kính lúp (descriptionContains 'Tìm kiếm')")
+                clicked = True
+            except Exception:
+                log("❌ Không tìm thấy nút kính lúp bằng descriptionContains 'Tìm kiếm'")
+
+        if not clicked:
+            log("⛔ Không nhấn được nút kính lúp bằng mọi cách!")
+        time.sleep(4)
+
+        # 1. Tìm ô nhập Search
+        input_box = None
+        for how, what in [
+            (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
+            (AppiumBy.CLASS_NAME, "android.widget.EditText"),
+        ]:
+            try:
+                input_box = d.find_element(how, what)
+                input_box.click()
+                time.sleep(2)
+                break
+            except Exception:
+                continue
+
+        if not input_box:
+            log("❌ Không tìm thấy ô nhập Search")
+        else:
+            # 2. Lấy số lượng follow từ biến UI
+            try:
+                follow_count = phone_follow_count_var.get()
+            except Exception:
+                follow_count = 10
+
+            FOLLOW_USERNAMES = [
+                "cristiano","leomessi","neymarjr","k.mbappe","vinijr","shx_pe06","ngdat47","nguyen57506",
+                "datgia172","levandung9090","buiduc7432","letrong8649","hoangquang2408","vuvted","vuhuu7035",
+                "lehuu9473","phanquang9903","phamduc2740","lengocquynh227","space.hubx","paraneko_2nd",
+                "davide_feltrin","valentin_otz","faker","isn_calisthenics","t1lol","asamimichaan","ti_naka_cpz",
+                "fran_lomeli","t1_gumayusi","keria_minseok"
+            ]
+            follow_list = random.sample(FOLLOW_USERNAMES, min(follow_count, len(FOLLOW_USERNAMES)))
+            followed = 0
+
+            for username in follow_list:
+                # Tìm lại ô nhập Search
+                input_box = None
+                for how, what in [
+                    (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
+                    (AppiumBy.CLASS_NAME, "android.widget.EditText"),
+                ]:
+                    try:
+                        input_box = d.find_element(how, what)
+                        input_box.click()
+                        break
+                    except Exception:
+                        continue
+
+                if not input_box:
+                    log("❌ Không tìm thấy ô nhập Search khi follow username mới")
+                    continue
+
+                # Nhập username (send_keys fallback set_value)
+                try:
+                    input_box.clear()
+                except Exception:
+                    pass
+                try:
+                    input_box.send_keys(username)
+                    log(f"⌨️ Nhập username bằng send_keys: {username}")
+                except Exception:
+                    try:
+                        d.set_value(input_box, username)
+                        log(f"⌨️ Nhập username bằng set_value: {username}")
+                    except Exception as e:
+                        log(f"❌ Không nhập được {username}: {e}")
+                        continue
+                time.sleep(3)
+
+                # Tìm đúng username trong kết quả
+                found = False
+                results = d.find_elements(AppiumBy.ID, "com.instagram.android:id/row_search_user_username")
+                if not results:
+                    results = d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{username}")')
+                for el in results:
+                    try:
+                        t = (el.text or "").strip()
+                        if t.lower() == username.lower() or username.lower() in t.lower():
+                            el.click()
+                            log(f"✅ Đã nhấn vào username: {username}")
+                            found = True
+                            break
+                    except Exception:
+                        continue
+
+                if not found:
+                    log(f"❌ Không tìm thấy username {username} trong kết quả tìm kiếm")
+                    continue
+
+                time.sleep(5)
+
+                # Nhấn nút Follow
+                try:
+                    follow_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Follow")')
+                    if follow_btn.is_enabled() and follow_btn.is_displayed():
+                        follow_btn.click()
+                        log(f"✅ Đã nhấn Follow cho {username}")
+                        time.sleep(1.2)
+                        followed += 1
+
+                        # --- Back sau khi follow ---
+                        back_clicked = False
+                        try:
+                            for desc in ["Back", "Điều hướng lên"]:
+                                try:
+                                    back_btn = d.find_element(AppiumBy.ACCESSIBILITY_ID, desc)
+                                    back_btn.click()
+                                    log(f"🔙 Đã nhấn nút mũi tên lùi ({desc})")
+                                    back_clicked = True
+                                    time.sleep(2)
+                                    break
+                                except Exception:
+                                    continue
+                            if not back_clicked:
+                                btns = d.find_elements(AppiumBy.CLASS_NAME, "android.widget.ImageButton")
+                                if btns:
+                                    btns[0].click()
+                                    log("🔙 Đã nhấn nút mũi tên lùi")
+                                    back_clicked = True
+                                    time.sleep(2)
+                            if not back_clicked:
+                                d.back()
+                                log("🔙 Đã Ấn Back")
+                                time.sleep(2)
+                        except Exception:
+                            log("⚠️ Không tìm thấy nút mũi tên lùi sau khi Follow")
+                    else:
+                        log(f"❌ Nút Follow không khả dụng trên profile {username}")
+                except Exception:
+                    log(f"❌ Không tìm thấy nút Follow trên profile {username}")
+
+                # Nếu đã đủ số lượng thì dừng
+                if followed >= follow_count:
+                    break
 
         # Bật Chuyên Nghiệp 
+        # --- Tắt app Instagram ---
+        subprocess.call(["adb", "-s", self.udid, "shell", "am", "force-stop", "com.instagram.android"])
+        log("🛑 Đã tắt app Instagram")
+        time.sleep(3)
+
+        # --- Khởi động lại Instagram ---
+        subprocess.call(["adb", "-s", self.udid, "shell", "monkey", "-p", "com.instagram.android", "-c", "android.intent.category.LAUNCHER", "1"])
+        log("🔄 Đã mở lại app Instagram")
+        time.sleep(15)  # chờ app load
+
         # --- Vào Profile ---
         subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
         log("👤 Đã vào Profile")
@@ -2476,7 +2769,7 @@ class AndroidWorker(threading.Thread):
                 break
             except Exception:
                 continue
-        time.sleep(0.6)
+        time.sleep(7)
 
         # 5) Màn "What type of professional are you?" → chọn Creator/Business → Next
         typ = (account_type or "").strip().lower()
@@ -5666,6 +5959,7 @@ phone_canvas = tk.Canvas(phone_settings_wrap, bg="white", highlightthickness=0)
 phone_vscroll = ttk.Scrollbar(phone_settings_wrap, orient="vertical", command=phone_canvas.yview)
 phone_canvas.configure(yscrollcommand=phone_vscroll.set)
 
+
 # Frame chứa widget con
 phone_settings = tk.LabelFrame(phone_canvas, text="Phone Settings", bg="white", font=("Arial", 11, "bold"))
 phone_canvas_window = phone_canvas.create_window((0, 0), window=phone_settings, anchor="nw")
@@ -5886,6 +6180,10 @@ pro_type_var = tk.StringVar(value="Creator")
 ttk.Label(pro_settings_frame, text="Type:").pack(side="left", padx=(10, 2))
 ttk.Combobox(pro_settings_frame, textvariable=pro_type_var, values=["Creator", "Business"], width=10, state="readonly").pack(side="left")
 
+# Ô nhập số lượng follow (mặc định 10)
+phone_follow_count_var = tk.IntVar(value=10)
+ttk.Label(phone_settings, text="Số lượng follow:").pack(side="left", padx=(10, 2))
+ttk.Spinbox(phone_settings, from_=1, to=30, textvariable=phone_follow_count_var, width=5).pack(side="left")
 # ======================= QUÉT THIẾT BỊ LẦN ĐẦU =======================
 try:
     refresh_adb_devices_table()
