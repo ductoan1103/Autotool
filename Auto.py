@@ -1575,56 +1575,6 @@ class AndroidWorker(threading.Thread):
             debug_log(f"❌ Lỗi: {e}")
             return ""
 
-    def mark_fail(self, reason, email=None, username=None, password=None):
-        global fail_count
-        fail_count += 1
-
-        # update fail_var
-        try:
-            fail_var.set(str(fail_count))
-            update_rate()
-        except Exception:
-            pass
-
-        # Log lý do fail
-        msg = f"[FAIL] {reason}"
-        if email or username or password:
-            creds = []
-            if email: creds.append(f"Mail: {email}")
-            if username: creds.append(f"User: {username}")
-            if password: creds.append(f"Pass: {password}")
-            msg += " | " + " | ".join(creds)
-        self.log(f"⛔ {msg}")
-
-        # Insert vào Tree (STT sẽ auto tăng trong insert_to_tree)
-        try:
-            insert_to_tree(
-                status="FAIL",
-                username=username or "?",
-                password=password or "?",
-                mail=email or "?",
-                phone="",
-                cookie="",
-                fa="",
-                token="",
-                ip="",
-                proxy="",
-                live="",
-                die="",
-                fail="FAIL"
-            )
-        except Exception as e:
-            self.log(f"⚠️ Không insert vào Tree: {e}")
-
-        # Restart lại phiên
-        try:
-            self.stop()
-            time.sleep(2)
-            new_worker = AndroidWorker(self.udid, self.log)
-            new_worker.start()
-        except Exception as e:
-            self.log(f"⚠️ Không restart được phiên: {e}")
-
     # ================================== SIGNUP – INSTAGRAM (full app) =========================================
     def signup_instagram(self):
         """
@@ -1633,6 +1583,58 @@ class AndroidWorker(threading.Thread):
         hoặc self.var_mail_src ('dropmail'|'tempasia') nếu không có fetch_signup_email.
         """
         d, log = self.driver, self.log
+
+        # Helper: mark current session as Die, persist info and restart a new worker
+        def _mark_die_and_restart(reason=None):
+            try:
+                # Best-effort gather info
+                username_safe = (locals().get("username") or getattr(self, "username", "") or "")
+                pwd = locals().get("password", "")
+                mail = locals().get("email", "")
+                current_cookie = locals().get("cookie_str", "")
+
+                # Insert into TreeView (try via app.after first)
+                try:
+                    app.after(0, lambda: insert_to_tree("Die", username_safe, pwd, mail, current_cookie, two_fa_code=""))
+                except Exception:
+                    try:
+                        insert_to_tree("Die", username_safe, pwd, mail, current_cookie, two_fa_code="")
+                    except Exception:
+                        pass
+
+                # Append to Die.txt
+                try:
+                    with open("Die.txt", "a", encoding="utf-8") as f:
+                        f.write(f"{username_safe}|{pwd}|{mail}|{current_cookie}|\n")
+                    log("💾 Đã lưu Die.txt (auto)")
+                except Exception:
+                    log("⚠️ Không thể ghi Die.txt")
+
+                # Enable airplane mode to isolate device and reduce risk
+                try:
+                    adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                    adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                    adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                    adb_shell(self.udid, "svc", "wifi", "disable")
+                    adb_shell(self.udid, "svc", "data", "disable")
+                    log("🛫 Đã bật Chế độ máy bay (Die - auto)")
+                except Exception as e:
+                    log(f"⚠️ Lỗi khi bật máy bay: {e}")
+
+                # Restart a new worker/session
+                try:
+                    self.log("🔄 Restart phiên vì Die…")
+                    try:
+                        self.stop()
+                    except Exception:
+                        pass
+                    time.sleep(3)
+                    AndroidWorker(self.udid, log_fn=self.log).start()
+                except Exception as e:
+                    log(f"⚠️ Không thể restart worker: {e}")
+            except Exception as e:
+                log(f"⚠️ Lỗi _mark_die_and_restart: {e}")
+            return False
 
         # 1) Login screen → Create new account
         try:
@@ -1646,8 +1648,7 @@ class AndroidWorker(threading.Thread):
             d.find_element(AppiumBy.XPATH, '//*[@text="Sign up with email"]').click()
             log("👉 Bấm 'Sign up with email'")
         except Exception:
-            self.mark_fail("Không bấm được 'Sign up with email'")
-            return False
+            return _mark_die_and_restart("signup: couldn't find 'Sign up with email'")
         time.sleep(1.5)
 
         # 3) Lấy email tạm
@@ -1667,8 +1668,7 @@ class AndroidWorker(threading.Thread):
                 source = "tempasia"
 
         if not email:
-            self.mark_fail("Không lấy được email tạm")
-            return False
+            return _mark_die_and_restart("signup: no temp email obtained")
 
         # 4) Điền email
         try:
@@ -1682,8 +1682,7 @@ class AndroidWorker(threading.Thread):
             edits = d.find_elements(AppiumBy.CLASS_NAME, 'android.widget.EditText')
             email_input = edits[0] if edits else None
         if not email_input:
-            self.mark_fail("Không tìm thấy ô nhập email", email=email)
-            return False
+            return _mark_die_and_restart("signup: email input not found")
 
         email_input.clear(); email_input.send_keys(email)
         log(f"✅ Email đăng ký: {email}")
@@ -1696,8 +1695,7 @@ class AndroidWorker(threading.Thread):
             ).click()
             log("➡️ Next sau khi nhập email.")
         except Exception:
-            self.mark_fail("Không thấy nút Next", email=email)
-            return False
+            return _mark_die_and_restart("signup: click Next after email failed")
         time.sleep(4)
 
         # 6) OTP → hỗ trợ resend
@@ -1729,8 +1727,7 @@ class AndroidWorker(threading.Thread):
         except Exception as e:
             log(f"⚠️ Lỗi chờ OTP: {repr(e)}")
         if not code:
-            self.mark_fail("Không lấy được OTP", email=email)
-            return False
+            return _mark_die_and_restart("signup: OTP not received")
 
         # 8) Điền OTP + Next
         try:
@@ -1746,8 +1743,7 @@ class AndroidWorker(threading.Thread):
             except Exception:
                 pass
         except Exception as e:
-            self.mark_fail(f"Lỗi nhập OTP: {repr(e)}", email=email)
-            return False
+            return _mark_die_and_restart(f"signup: error filling OTP - {e}")
         time.sleep(5)
 
         # 9) Password
@@ -1765,8 +1761,7 @@ class AndroidWorker(threading.Thread):
             pass_input.clear(); pass_input.send_keys(password)
             log(f"✅ Password: {password}")
         except Exception as e:
-            self.mark_fail(f"Lỗi nhập Password: {repr(e)}", email=email)
-            return False
+            return _mark_die_and_restart(f"signup: error filling password - {e}")
         time.sleep(0.8)
 
         try:
@@ -1775,8 +1770,7 @@ class AndroidWorker(threading.Thread):
             ).click()
             log("➡️ Next sau Password.")
         except Exception:
-            self.mark_fail("Không bấm được Next sau Password", email=email)
-            return False
+            return _mark_die_and_restart("signup: Next after password failed")
         time.sleep(3)
 
         # 10) Birthday / Age
@@ -1816,8 +1810,7 @@ class AndroidWorker(threading.Thread):
             except Exception:
                 pass
         except Exception as e:
-            self.mark_fail(f"Lỗi màn Age/Birthday: {repr(e)}", email=email)
-            return False
+            return _mark_die_and_restart(f"signup: birthday/age step failed - {e}")
         time.sleep(3)
 
         # 11) Full name
@@ -1837,8 +1830,7 @@ class AndroidWorker(threading.Thread):
                 EC.element_to_be_clickable((AppiumBy.XPATH, '//*[@text="Next" or @text="Tiếp"]'))
             ).click()
         except Exception as e:
-            self.mark_fail(f"Lỗi nhập Full name: {repr(e)}", email=email, password=password)
-            return False
+            return _mark_die_and_restart(f"signup: full name step failed - {e}")
         time.sleep(3)
 
         # 12) Create a username → đọc & Next
@@ -1859,8 +1851,7 @@ class AndroidWorker(threading.Thread):
                 EC.element_to_be_clickable((AppiumBy.XPATH, '//*[@text="Next" or @text="Tiếp"]'))
             ).click()
         except Exception as e:
-            self.mark_fail(f"Lỗi Create a username: {repr(e)}", email=email, password=password)
-            return False
+            return _mark_die_and_restart(f"signup: username/next step failed - {e}")
         time.sleep(3)
 
         # 13) Terms & Policies + spam Next cho tới khi xong
@@ -1870,8 +1861,7 @@ class AndroidWorker(threading.Thread):
             ).click()
             log("✅ I agree")
         except Exception as e:
-            self.mark_fail(f"Không thấy 'I agree': {repr(e)}", email=email, password=password)
-            return False
+            return _mark_die_and_restart(f"signup: agree/terms step failed - {e}")
 
         for i in range(10):
             try:
@@ -2206,22 +2196,22 @@ class AndroidWorker(threading.Thread):
             except Exception as e:
                 log(f"❌ Lỗi bước bật 2FA: {e}")
 
-        # --- Lưu vào Live.txt (nếu là Live, có thể có 2FA) ---
-        try:
-            # Chỉ lưu secret_key vào cột 2FA, nếu không có thì để trống hoàn toàn
-            with open("Live.txt", "a", encoding="utf-8") as f:
-                f.write(f"{username_safe}|{password}|{email}|{current_cookie}|{secret_key if secret_key else ''}\n")
-            log("💾 Đã lưu Live.txt")
-        except Exception as e:
-            log(f"⚠️ Lỗi khi lưu Live.txt: {repr(e)}")
+            # --- Lưu vào Live.txt (nếu là Live, có thể có 2FA) ---
+            try:
+                # Chỉ lưu secret_key vào cột 2FA, nếu không có thì để trống hoàn toàn
+                with open("Live.txt", "a", encoding="utf-8") as f:
+                    f.write(f"{username_safe}|{password}|{email}|{current_cookie}|{secret_key if secret_key else ''}\n")
+                log("💾 Đã lưu Live.txt")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi lưu Live.txt: {repr(e)}")
 
-        # --- Insert vào TreeView (nếu là Live, có thể có 2FA) ---
-        try:
-            # Chỉ truyền secret_key vào cột 2FA, nếu không có thì để trống hoàn toàn
-            app.after(0, lambda: insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else ""))
-        except Exception:
-            insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else "")
-        time.sleep(4)
+            # --- Insert vào TreeView (nếu là Live, có thể có 2FA) ---
+            try:
+                # Chỉ truyền secret_key vào cột 2FA, nếu không có thì để trống hoàn toàn
+                app.after(0, lambda: insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else ""))
+            except Exception:
+                insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else "")
+            time.sleep(4)
         
         # ==== PUSH 1 ẢNH NGẪU NHIÊN VÀO PHONE + MEDIA SCAN (style AutoPhone) ====
         try:
@@ -2330,7 +2320,6 @@ class AndroidWorker(threading.Thread):
                     log("⚠️ Không tìm thấy mục Post, bỏ qua")
             else:
                 log("❌ Không nhấn được nút + nào")
-            
             # 5. Ấn Next 
             for _ in range(2):
                 clicked_next = False
@@ -2392,7 +2381,7 @@ class AndroidWorker(threading.Thread):
                 log(f"✅ [{udid}] Đã đăng bài mới.")
             else:
                 log(f"⚠️ [{udid}] Không bấm được nút Share/Chia sẻ.")
-            time.sleep(12)
+            time.sleep(15)
 
         if enable_autofollow.get():     
             # AuTo Follow
@@ -2464,7 +2453,7 @@ class AndroidWorker(threading.Thread):
                     follow_count = 10
 
                 FOLLOW_USERNAMES = [
-                    "cristiano","leomessi","neymarjr","k.mbappe","vinijr","shx_pe06","ngdat47","nguyen57506",
+                    "cristiano","leomessi","neymarjr","k.mbappe","vinijr","shx_pe06","nguyen57506",
                     "datgia172","levandung9090","buiduc7432","letrong8649","hoangquang2408","vuvted","vuhuu7035",
                     "lehuu9473","phanquang9903","phamduc2740","lengocquynh227","space.hubx","paraneko_2nd",
                     "davide_feltrin","valentin_otz","faker","isn_calisthenics","t1lol","asamimichaan","ti_naka_cpz",
@@ -2586,7 +2575,7 @@ class AndroidWorker(threading.Thread):
                                     'new UiSelector().textContains("Edit profile")')
                 el.click()
                 log("✅ Đã nhấn nút Edit profile")
-                time.sleep(6)
+                time.sleep(7)
             except Exception as e:
                 log(f"❌ Không tìm thấy hoặc không nhấn được nút Edit profile: {e}")
                 return False
@@ -2603,35 +2592,51 @@ class AndroidWorker(threading.Thread):
             if in_share_profile:
                 log("⚠️ Vào nhầm Share profile")
 
-                # Thử tap vài lần (nếu có màn giới thiệu)
+                # Thử tap 4 lần (để bỏ qua màn giới thiệu nếu có)
                 for i in range(4):
-                    d.tap([(200, 400)])  # chỉnh lại toạ độ nếu cần
-                    time.sleep(0.1)
+                    d.tap([(540, 600)])
+                    time.sleep(2)
 
-                # Nhấn X để thoát
+                # Thử tìm nút Close/Back/ImageButton
+                close_btn = None
                 try:
                     close_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
                                             'new UiSelector().descriptionContains("Close")')
+                except:
+                    try:
+                        close_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
+                                                'new UiSelector().descriptionContains("Back")')
+                    except:
+                        try:
+                            buttons = d.find_elements(By.CLASS_NAME, "android.widget.ImageButton")
+                            if buttons:
+                                close_btn = buttons[0]
+                        except:
+                            pass
+
+                if close_btn:
                     close_btn.click()
                     log("✅ Đã thoát khỏi Share profile")
-                    time.sleep(5)
-                except:
-                    log("❌ Không tìm thấy nút X để thoát Share profile")
+                    time.sleep(2)
+                else:
+                    log("❌ Không tìm thấy nút Close/Back để thoát Share profile")
                     return False
 
                 # Nhấn lại Edit profile
                 try:
-                    el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                        'new UiSelector().textContains("Edit profile")')
+                    el = WebDriverWait(d, 8).until(
+                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                            'new UiSelector().textContains("Edit profile")'))
+                    )
                     el.click()
                     log("✅ Đã nhấn lại Edit profile sau khi thoát Share profile")
-                    time.sleep(4)
+                    time.sleep(2)
                 except Exception as e2:
                     log(f"❌ Không thể nhấn lại Edit profile: {e2}")
                     return False
 
             else:
-                # Nếu không phải share profile, thì check popup avatar
+                # Nếu không phải Share profile, thì check popup avatar
                 try:
                     notnow = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
                                             'new UiSelector().textContains("Not now")')
@@ -2798,7 +2803,7 @@ class AndroidWorker(threading.Thread):
                                     'new UiSelector().textContains("Edit profile")')
                 el.click()
                 log("✅ Đã nhấn nút Edit profile")
-                time.sleep(6)
+                time.sleep(7)
             except Exception as e:
                 log(f"❌ Không tìm thấy hoặc không nhấn được nút Edit profile: {e}")
                 return False
@@ -2815,32 +2820,58 @@ class AndroidWorker(threading.Thread):
             if in_share_profile:
                 log("⚠️ Vào nhầm Share profile")
 
-                # Thử tap vài lần (nếu có màn giới thiệu)
+                # Thử tap 4 lần (để bỏ qua màn giới thiệu nếu có)
                 for i in range(4):
-                    d.tap([(200, 400)])  # chỉnh lại toạ độ nếu cần
-                    time.sleep(0.1)
+                    d.tap([(540, 600)])
+                    time.sleep(1)
 
-                # Nhấn X để thoát
+                # Thử tìm nút Close/Back/ImageButton
+                close_btn = None
                 try:
                     close_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
                                             'new UiSelector().descriptionContains("Close")')
+                except:
+                    try:
+                        close_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
+                                                'new UiSelector().descriptionContains("Back")')
+                    except:
+                        try:
+                            buttons = d.find_elements(By.CLASS_NAME, "android.widget.ImageButton")
+                            if buttons:
+                                close_btn = buttons[0]
+                        except:
+                            pass
+
+                if close_btn:
                     close_btn.click()
                     log("✅ Đã thoát khỏi Share profile")
-                    time.sleep(5)
-                except:
-                    log("❌ Không tìm thấy nút X để thoát Share profile")
+                    time.sleep(2)
+                else:
+                    log("❌ Không tìm thấy nút Close/Back để thoát Share profile")
                     return False
 
                 # Nhấn lại Edit profile
                 try:
-                    el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                        'new UiSelector().textContains("Edit profile")')
+                    el = WebDriverWait(d, 8).until(
+                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                            'new UiSelector().textContains("Edit profile")'))
+                    )
                     el.click()
                     log("✅ Đã nhấn lại Edit profile sau khi thoát Share profile")
-                    time.sleep(4)
+                    time.sleep(2)
                 except Exception as e2:
                     log(f"❌ Không thể nhấn lại Edit profile: {e2}")
                     return False
+
+            else:
+                # Nếu không phải Share profile, thì check popup avatar
+                try:
+                    notnow = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
+                                            'new UiSelector().textContains("Not now")')
+                    notnow.click()
+                    log("✅ Đã ấn Not now ở popup tạo avatar")
+                except Exception:
+                    pass  # Không có popup thì bỏ qua
 
             # 2) Cuộn và bấm "Switch to professional account"
             if not _scroll_into_view_by_text(d, "Switch to professional"):
@@ -3167,7 +3198,6 @@ log_text = None
  
 live_count = 0
 die_count = 0
-fail_count = 0
 
 # --- Biến toàn cục ---
 ava_folder_path = ""
@@ -3247,8 +3277,7 @@ def update_rate():
     try:
         live = int(live_var.get())
         die  = int(die_var.get())
-        fail = int(fail_var.get())
-        total = live + die + fail
+        total = live + die
         if total > 0:
             rate = round((live / total) * 100, 2)
             rate_var.set(f"{rate}%")
@@ -3383,8 +3412,6 @@ def insert_to_tree(status_text, username, password, email, cookie_str, two_fa_co
             status_tag = "LIVE"
         elif status_lower == "die":
             status_tag = "DIE"
-        elif status_lower == "fail":
-            status_tag = "FAIL"
 
         phone_val  = ""  # hoặc lấy từ biến của bạn nếu có
         token_val  = ""  # để trống
@@ -3401,7 +3428,6 @@ def insert_to_tree(status_text, username, password, email, cookie_str, two_fa_co
                 "127.0.0.1", "NoProxy",
                 "LIVE" if status_tag == "LIVE" else "",
                 "DIE"  if status_tag == "DIE"  else "",
-                "FAIL" if status_tag == "FAIL" else ""
             ),
             tags=(status_tag,)
         )
@@ -3904,9 +3930,7 @@ def run_mobile(thread_id=None):
 
         # 5) Resend code (nếu cần) → tương thích với code bạn đưa
         try:
-            if warp_enabled:
-                warp_change_ip()
-            time.sleep(6)
+            time.sleep(5)
             log("⏳ [Mobile] Click 'I didn’t get the code'...")
             button_i_didnt_get = wait.until(EC.element_to_be_clickable(
                 (By.XPATH, "//div[@role='button' and contains(., \"I didn’t get the code\")]")))
@@ -4079,9 +4103,6 @@ def run_mobile(thread_id=None):
             log("➡️ [Mobile] Next sau username.")
         except Exception as e:
             log(f"⚠️ [Mobile] Bỏ qua kiểm username: {e}")
-        time.sleep(3)
-        if warp_enabled:
-            warp_change_ip()
         time.sleep(10)
         # 11) I agree (nếu có nhiều lần)
         try:
@@ -4170,7 +4191,6 @@ def run_mobile(thread_id=None):
 
                 # Quyết định restart
                 try:
-                    warp_off()
                     time.sleep(2)
                     release_position(driver)
                     driver.quit()
@@ -4185,14 +4205,14 @@ def run_mobile(thread_id=None):
         except Exception as e:
             log(f"⚠️ Lỗi khi check live/die: {repr(e)}")
 
-            # Quay lại giao diện Desktop
-            log("🖥 Quay lại giao diện Desktop...")
-            driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
-            driver.execute_cdp_cmd("Emulation.setUserAgentOverride", {
-                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-            })
-            driver.refresh()
-            time.sleep(5)
+        # Quay lại giao diện Desktop
+        log("🖥 Quay lại giao diện Desktop...")
+        driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
+        driver.execute_cdp_cmd("Emulation.setUserAgentOverride", {
+            "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        })
+        driver.refresh()
+        time.sleep(5)
 
         # === BƯỚC 7: Xử lý bật 2FA ===
         if enable_2fa.get():
@@ -4414,9 +4434,7 @@ def run_mobile(thread_id=None):
 
         # === BƯỚC 6: Upload avatar ở giao diện mobile ===
         if enable_avatar.get():
-            if warp_enabled:
-                warp_off()
-                time.sleep(4)
+            time.sleep(4)
             try:
                 log("📱 Chuyển sang giao diện Mobile (iPhone 15 Pro Max)...")
                 driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
@@ -4429,7 +4447,7 @@ def run_mobile(thread_id=None):
                     "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
                 })
                 driver.refresh()
-                time.sleep(5)
+                time.sleep(8)
 
                 # Đóng popup Not Now nếu có
                 driver.execute_script("""
@@ -4651,9 +4669,7 @@ def run_mobile(thread_id=None):
 
             # === KẾT THÚC PHIÊN ===
             try:
-                if warp_enabled:
-                    warp_off()
-                    time.sleep(2)
+                time.sleep(2)
                 release_position(driver)       # ✅ trả chỗ
                 driver.quit()
                 log("👋 Đã đóng trình duyệt (driver.quit()).")
@@ -5566,7 +5582,7 @@ def show_intro(app, main_func):
 
     from PIL import Image, ImageTk
     img = Image.open("Autointro.png").convert("RGBA")
-    new_w, new_h = 800, 440
+    new_w, new_h = 900, 440
     img = img.resize((new_w, new_h), Image.LANCZOS)
     logo = ImageTk.PhotoImage(img)
 
@@ -5617,7 +5633,6 @@ app.resizable(True, True)
 # --- Biến đếm Live/Die/Rate ---
 live_var = tk.StringVar(value="0")
 die_var  = tk.StringVar(value="0")
-fail_var = tk.StringVar(value="0")
 rate_var = tk.StringVar(value="0%")
 
 # tạo StringVar sau khi app đã tồn tại
@@ -6404,10 +6419,6 @@ tk.Label(status_frame, textvariable=live_var, fg="green", bg="white", font=("Ari
 tk.Label(status_frame, text="DIE:",  fg="red",   bg="white", font=("Arial", 11, "bold")).grid(row=0, column=2, padx=5)
 tk.Label(status_frame, textvariable=die_var,  fg="red",   bg="white", font=("Arial", 11, "bold")).grid(row=0, column=3, padx=5)
 
-# === thêm FAIL tại đây ===
-tk.Label(status_frame, text="FAIL:", fg="orange", bg="white", font=("Arial", 11, "bold")).grid(row=0, column=4, padx=5)
-tk.Label(status_frame, textvariable=fail_var, fg="orange", bg="white", font=("Arial", 11, "bold")).grid(row=0, column=5, padx=5)
-
 # RATE dời sang cột 6 và 7
 tk.Label(status_frame, text="RATE:", fg="blue",  bg="white", font=("Arial", 11, "bold")).grid(row=0, column=6, padx=5)
 tk.Label(status_frame, textvariable=rate_var, fg="blue",  bg="white", font=("Arial", 11, "bold")).grid(row=0, column=7, padx=5)
@@ -6424,7 +6435,7 @@ log_text.pack(fill="both", expand=True, padx=5, pady=5)
 tree_frame = tk.LabelFrame(bottom_frame, text="Accounts", bg="white", font=("Arial", 10, "bold"))
 tree_frame.pack(side="right", fill="both", expand=True, padx=5)
 
-cols = ["STT","TRẠNG THÁI","USERNAME","PASS","MAIL","PHONE","COOKIE","2FA","TOKEN","IP","PROXY","LIVE","DIE","FAIL"]
+cols = ["STT","TRẠNG THÁI","USERNAME","PASS","MAIL","PHONE","COOKIE","2FA","TOKEN","IP","PROXY","LIVE","DIE"]
 tree = ttk.Treeview(tree_frame, columns=cols, show="headings", height=4)
 vsb = ttk.Scrollbar(tree_frame, orient="vertical",   command=tree.yview);  tree.configure(yscrollcommand=vsb.set); vsb.pack(side="right",  fill="y")
 hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=tree.xview);  tree.configure(xscrollcommand=hsb.set); hsb.pack(side="bottom", fill="x")
@@ -6436,7 +6447,6 @@ for col in cols:
 
 tree.tag_configure("LIVE", background="lightgreen")
 tree.tag_configure("DIE",  background="tomato")
-tree.tag_configure("FAIL", background="yellow")
 load_config()
 def open_main_app():
     try:
