@@ -1584,58 +1584,6 @@ class AndroidWorker(threading.Thread):
         """
         d, log = self.driver, self.log
 
-        # Helper: mark current session as Die, persist info and restart a new worker
-        def _mark_die_and_restart(reason=None):
-            try:
-                # Best-effort gather info
-                username_safe = (locals().get("username") or getattr(self, "username", "") or "")
-                pwd = locals().get("password", "")
-                mail = locals().get("email", "")
-                current_cookie = locals().get("cookie_str", "")
-
-                # Insert into TreeView (try via app.after first)
-                try:
-                    app.after(0, lambda: insert_to_tree("Die", username_safe, pwd, mail, current_cookie, two_fa_code=""))
-                except Exception:
-                    try:
-                        insert_to_tree("Die", username_safe, pwd, mail, current_cookie, two_fa_code="")
-                    except Exception:
-                        pass
-
-                # Append to Die.txt
-                try:
-                    with open("Die.txt", "a", encoding="utf-8") as f:
-                        f.write(f"{username_safe}|{pwd}|{mail}|{current_cookie}|\n")
-                    log("💾 Đã lưu Die.txt (auto)")
-                except Exception:
-                    log("⚠️ Không thể ghi Die.txt")
-
-                # Enable airplane mode to isolate device and reduce risk
-                try:
-                    adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
-                    adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
-                    adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
-                    adb_shell(self.udid, "svc", "wifi", "disable")
-                    adb_shell(self.udid, "svc", "data", "disable")
-                    log("🛫 Đã bật Chế độ máy bay (Die - auto)")
-                except Exception as e:
-                    log(f"⚠️ Lỗi khi bật máy bay: {e}")
-
-                # Restart a new worker/session
-                try:
-                    self.log("🔄 Restart phiên vì Die…")
-                    try:
-                        self.stop()
-                    except Exception:
-                        pass
-                    time.sleep(3)
-                    AndroidWorker(self.udid, log_fn=self.log).start()
-                except Exception as e:
-                    log(f"⚠️ Không thể restart worker: {e}")
-            except Exception as e:
-                log(f"⚠️ Lỗi _mark_die_and_restart: {e}")
-            return False
-
         # 1) Login screen → Create new account
         try:
             d.find_element(AppiumBy.XPATH, '//*[@text="Create new account"]').click()
@@ -1648,7 +1596,7 @@ class AndroidWorker(threading.Thread):
             d.find_element(AppiumBy.XPATH, '//*[@text="Sign up with email"]').click()
             log("👉 Bấm 'Sign up with email'")
         except Exception:
-            return _mark_die_and_restart("signup: couldn't find 'Sign up with email'")
+            return False
         time.sleep(1.5)
 
         # 3) Lấy email tạm
@@ -1668,7 +1616,7 @@ class AndroidWorker(threading.Thread):
                 source = "tempasia"
 
         if not email:
-            return _mark_die_and_restart("signup: no temp email obtained")
+            return False
 
         # 4) Điền email
         try:
@@ -1682,7 +1630,7 @@ class AndroidWorker(threading.Thread):
             edits = d.find_elements(AppiumBy.CLASS_NAME, 'android.widget.EditText')
             email_input = edits[0] if edits else None
         if not email_input:
-            return _mark_die_and_restart("signup: email input not found")
+            return False
 
         email_input.clear(); email_input.send_keys(email)
         log(f"✅ Email đăng ký: {email}")
@@ -1695,7 +1643,7 @@ class AndroidWorker(threading.Thread):
             ).click()
             log("➡️ Next sau khi nhập email.")
         except Exception:
-            return _mark_die_and_restart("signup: click Next after email failed")
+            return False
         time.sleep(4)
 
         # 6) OTP → hỗ trợ resend
@@ -1727,7 +1675,7 @@ class AndroidWorker(threading.Thread):
         except Exception as e:
             log(f"⚠️ Lỗi chờ OTP: {repr(e)}")
         if not code:
-            return _mark_die_and_restart("signup: OTP not received")
+            return False
 
         # 8) Điền OTP + Next
         try:
@@ -1743,7 +1691,7 @@ class AndroidWorker(threading.Thread):
             except Exception:
                 pass
         except Exception as e:
-            return _mark_die_and_restart(f"signup: error filling OTP - {e}")
+            return False
         time.sleep(5)
 
         # 9) Password
@@ -1761,7 +1709,7 @@ class AndroidWorker(threading.Thread):
             pass_input.clear(); pass_input.send_keys(password)
             log(f"✅ Password: {password}")
         except Exception as e:
-            return _mark_die_and_restart(f"signup: error filling password - {e}")
+            return False
         time.sleep(0.8)
 
         try:
@@ -1770,7 +1718,7 @@ class AndroidWorker(threading.Thread):
             ).click()
             log("➡️ Next sau Password.")
         except Exception:
-            return _mark_die_and_restart("signup: Next after password failed")
+            return False
         time.sleep(3)
 
         # 10) Birthday / Age
@@ -1810,7 +1758,7 @@ class AndroidWorker(threading.Thread):
             except Exception:
                 pass
         except Exception as e:
-            return _mark_die_and_restart(f"signup: birthday/age step failed - {e}")
+            return False
         time.sleep(3)
 
         # 11) Full name
@@ -1830,7 +1778,7 @@ class AndroidWorker(threading.Thread):
                 EC.element_to_be_clickable((AppiumBy.XPATH, '//*[@text="Next" or @text="Tiếp"]'))
             ).click()
         except Exception as e:
-            return _mark_die_and_restart(f"signup: full name step failed - {e}")
+            return False
         time.sleep(3)
 
         # 12) Create a username → đọc & Next
@@ -1851,7 +1799,7 @@ class AndroidWorker(threading.Thread):
                 EC.element_to_be_clickable((AppiumBy.XPATH, '//*[@text="Next" or @text="Tiếp"]'))
             ).click()
         except Exception as e:
-            return _mark_die_and_restart(f"signup: username/next step failed - {e}")
+            return False
         time.sleep(3)
 
         # 13) Terms & Policies + spam Next cho tới khi xong
@@ -1861,7 +1809,7 @@ class AndroidWorker(threading.Thread):
             ).click()
             log("✅ I agree")
         except Exception as e:
-            return _mark_die_and_restart(f"signup: agree/terms step failed - {e}")
+            return False
 
         for i in range(10):
             try:
