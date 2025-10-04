@@ -2639,143 +2639,62 @@ class AndroidWorker(threading.Thread):
             # --- Vào Profile ---
             subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
             log("👤 Đã vào Profile")
-            time.sleep(5)
-
-            # --- Về Home ---
-            subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "100", "1850"])
-            log("👤 Đã về lại Home")
-            time.sleep(2)
-
-            # --- Vào Profile ---
-            subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
-            log("👤 Đã vào Profile")
-            time.sleep(7)
-
-            clicked = False
-            # 1. Thử theo resource-id phổ biến
-            try:
-                el = d.find_element(AppiumBy.ID, "com.instagram.android:id/profile_imageview")
-                el.click()
-                log("✅ Đã nhấn vào nút máy ảnh (resource-id)")
-                clicked = True
-            except Exception:
-                log("❌ Không tìm thấy nút máy ảnh bằng resource-id")
-
-            # 2. Thử theo content-desc (nếu có)
-            if not clicked:
-                try:
-                    el = d.find_element(AppiumBy.XPATH, '//android.widget.ImageView[contains(@content-desc, "Add profile photo")]')
-                    el.click()
-                    log("✅ Đã nhấn vào nút máy ảnh (content-desc)")
-                    clicked = True
-                except Exception:
-                    log("❌ Không tìm thấy nút máy ảnh bằng content-desc")
-
-            # 3. Thử theo vị trí đầu tiên của ImageView
-            if not clicked:
-                try:
-                    el = d.find_element(AppiumBy.XPATH, '(//android.widget.ImageView)[1]')
-                    el.click()
-                    log("✅ Đã nhấn vào ImageView đầu tiên (avatar)")
-                    clicked = True
-                except Exception:
-                    log("❌ Không tìm thấy ImageView đầu tiên")
-
-            # 4. Thử theo class name và index
-            if not clicked:
-                try:
-                    els = d.find_elements(AppiumBy.CLASS_NAME, "android.widget.ImageView")
-                    if len(els) > 0:
-                        els[0].click()
-                        log("✅ Đã nhấn vào ImageView[0] (avatar)")
-                        clicked = True
-                    else:
-                        log("❌ Không tìm thấy ImageView nào")
-                except Exception as e:
-                    log(f"⚠️ Lỗi khi tìm ImageView: {e}")
-
-            if not clicked:
-                log("❌ Không nhấn được nút máy ảnh nào. Hãy kiểm tra lại selector bằng Appium Inspector.")
-
-            # Nếu đã nhấn được nút máy ảnh, tiếp tục chọn 'Add profile picture' và 'Choose from library'
-            if clicked:
-                time.sleep(2)
-                try:
-                    # Nhấn vào 'Add profile picture'
-                    add_profile_btn = d.find_element(AppiumBy.XPATH, '//android.widget.TextView[@text="Add profile picture"]')
-                    add_profile_btn.click()
-                    log("✅ Đã nhấn vào 'Add profile picture'")
-                    time.sleep(4)
-                    # Nhấn vào 'Choose from library'
-                    choose_lib_btn = d.find_element(AppiumBy.XPATH, '//android.widget.TextView[@text="Choose from library"]')
-                    choose_lib_btn.click()
-                    log("✅ Đã nhấn vào 'Choose from library'")
-                except Exception as e:
-                    log(f"⚠️ Lỗi khi chọn 'Add profile picture' hoặc 'Choose from library': {e}")
-                time.sleep(8)
-
-            # 5. Ấn "Done" (góc phải trên)
-            for txt in ["Done", "Next", "Tiếp", "Xong", "Lưu"]:
-                try:
-                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
-                    break
-                except Exception:
-                    pass
             time.sleep(8)
-
-            # 1. Thử với Button
+            # Nhấn Edit profile
             try:
-                edit_btn = d.find_element(AppiumBy.XPATH, '//android.widget.Button[@text="Edit profile"]')
-                edit_btn.click()
-                log("✅ Đã nhấn vào nút Edit Profile (Button)")
-                clicked = True
-            except Exception:
-                log("❌ Không tìm thấy nút Edit Profile dạng Button")
+                el = WebDriverWait(d, 8).until(
+                    EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                        'new UiSelector().textContains("Edit profile")'))
+                )
+                el.click()
+                log("✅ Đã nhấn Edit profile")
+                time.sleep(5)
+            except Exception as e:
+                log(f"❌ Không thể nhấn Edit profile: {e}")
 
-            # 2. Thử với TextView
-            if not clicked:
-                try:
-                    edit_btn = d.find_element(AppiumBy.XPATH, '//android.widget.TextView[@text="Edit profile"]')
-                    edit_btn.click()
-                    log("✅ Đã nhấn vào nút Edit Profile (TextView)")
-                    clicked = True
-                except Exception:
-                    log("❌ Không tìm thấy nút Edit Profile dạng TextView")
-
-            # 3. Thử với resource-id phổ biến
-            if not clicked:
-                try:
-                    edit_btn = d.find_element(AppiumBy.ID, 'com.instagram.android:id/edit_profile_button')
-                    edit_btn.click()
-                    log("✅ Đã nhấn vào nút Edit Profile (resource-id)")
-                    clicked = True
-                except Exception:
-                    log("❌ Không tìm thấy nút Edit Profile bằng resource-id")
-
-            # 4. Thử với contains(@text)
-            if not clicked:
-                try:
-                    edit_btn = d.find_element(AppiumBy.XPATH, '//*[contains(@text, "Edit profile")]')
-                    edit_btn.click()
-                    log("✅ Đã nhấn vào nút Edit Profile (contains)")
-                    clicked = True
-                except Exception:
-                    log("❌ Không tìm thấy nút Edit Profile với contains(@text)")
-
-            if not clicked:
-                log("❌ Không nhấn được nút Edit Profile bằng bất kỳ cách nào. Hãy kiểm tra lại selector bằng Appium Inspector.")
-            time.sleep(6)
-
-            # Check popup avatar
+            # Nếu không phải Share profile, thì check popup avatar
             try:
                 notnow = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
                                         'new UiSelector().textContains("Not now")')
                 notnow.click()
                 log("✅ Đã ấn Not now ở popup tạo avatar")
             except Exception:
-                pass
-            time.sleep(3)   
+                pass  # Không có popup thì bỏ qua
+            
+            # UP AVATAR 
+            # 1. Tìm và ấn vào "Change profile picture"
+            el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Change profile picture")')
+            el.click()
+            log("✅ Đã nhấn Change profile picture")
+            time.sleep(3)
 
+            # 2. Chọn "Choose from library"
+            choose = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Choose from library")')
+            choose.click()
+            log("✅ Đã chọn Choose from library")
+            time.sleep(6)
+
+            # 3. Ấn "Done" (góc phải trên)
+            for txt in ["Done", "Next", "Tiếp", "Xong", "Lưu"]:
+                try:
+                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
+                    break
+                except Exception:
+                    pass
+            time.sleep(13)
+
+            # Nhấn Edit profile
+            try:
+                el = WebDriverWait(d, 8).until(
+                    EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                        'new UiSelector().textContains("Edit profile")'))
+                )
+                el.click()
+                log("✅ Đã nhấn Edit profile sau khi thoát Share profile")
+                time.sleep(5)
+            except Exception as e:
+                log(f"❌ Không thể nhấn Edit profile: {e}")
+            
             # Điền BIO 
             # 1. Ấn vào label Bio
             el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Bio")')
@@ -2880,12 +2799,14 @@ class AndroidWorker(threading.Thread):
             else:
                 log(f"⚠️ [{udid}] Không bấm được nút Lưu/✓ trong màn Gender.")
             time.sleep(6)
-
-            # 4. Cuộn xuống để thấy nút switch to professional account
-            d.swipe(500, 1500, 500, 500, 500)
-            time.sleep(3)
             
         if enable_proaccount.get():
+            # Bật Chuyên Nghiệp 
+            # Chọn switch to Pro Account trong Settings 
+            # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
+            d.swipe(500, 1500, 500, 500, 500) 
+            time.sleep(5)
+
             # 2) Cuộn và bấm "Switch to professional account"
             if not _scroll_into_view_by_text(d, "Switch to professional"):
                 log(f"⚠️ [{udid}] Không tìm thấy mục 'Switch to professional account'.")
@@ -6380,6 +6301,7 @@ ttk.Button(actions_bottom, text="Chọn scrcpy.exe", command=choose_scrcpy_path)
 ttk.Button(actions_bottom, text="Mở View Phone",
            command=lambda: open_scrcpy_for_list(get_checked_udids("view")))\
    .grid(row=0, column=1, sticky="we", padx=(3, 0))
+
 # ======================= CHỌN APP IG: Instagram | Instagram Lite =======================
 def _persist_ig_choice():
     try:
