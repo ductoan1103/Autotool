@@ -1175,7 +1175,7 @@ class AndroidWorker(threading.Thread):
                     pass
 
         # 6) Chờ trạng thái đổi & xử lý popup nếu Android hỏi lần nữa
-        deadline = time.time() + 5
+        deadline = time.time() + 2
         while time.time() < deadline and _exists_any_text(["Disconnected","Không được bảo vệ"]):
             time.sleep(0.4)
         _tap_any_text(["OK","Allow","Cho phép","ĐỒNG Ý"], timeout=2, sleep_step=0.2)
@@ -1822,7 +1822,6 @@ class AndroidWorker(threading.Thread):
             log(f"✅ Password: {password}")
         except Exception as e:
             return False
-        time.sleep(0.8)
 
         try:
             WebDriverWait(d, 8).until(
@@ -1831,7 +1830,21 @@ class AndroidWorker(threading.Thread):
             log("➡️ Next sau Password.")
         except Exception:
             return False
-        time.sleep(3)
+        time.sleep(4)
+
+        # Nhấn Not now nếu có (bỏ qua nếu không)
+        try:
+            not_now_btn = WebDriverWait(d, 5).until(
+                EC.element_to_be_clickable((
+                    AppiumBy.XPATH,
+                    '//*[@text="Not now" or @text="Không phải bây giờ"]'
+                ))
+            )
+            not_now_btn.click()
+            log("✅ Đã ấn Not now")
+        except Exception:
+            pass 
+        time.sleep(4)
 
         # 10) Birthday / Age
         try:
@@ -1912,7 +1925,7 @@ class AndroidWorker(threading.Thread):
             ).click()
         except Exception as e:
             return False
-        time.sleep(3)
+        time.sleep(5)
 
         # 13) Terms & Policies + spam Next cho tới khi xong
         try:
@@ -2652,6 +2665,54 @@ class AndroidWorker(threading.Thread):
             except Exception as e:
                 log(f"❌ Không thể nhấn Edit profile: {e}")
 
+            # --- Nếu chưa click được Edit profile ---
+            if not clicked:
+                try:
+                    log("🔄 Vào nhầm Share profile...")
+
+                    # Kiểm tra có màn giới thiệu không (ví dụ tìm nút Emoji hoặc text "Share profile")
+                    has_intro = False
+                    try:
+                        WebDriverWait(d, 3).until(
+                            EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                                'new UiSelector().textContains("Share profile")'))
+                        )
+                        has_intro = True
+                        log("📌 Phát hiện màn giới thiệu Share profile")
+                    except:
+                        log("ℹ️ Không thấy màn giới thiệu, bỏ qua bước tap 4 lần")
+
+                    if has_intro:
+                        size = d.get_window_size()
+                        x = size["width"] // 2
+                        y = size["height"] // 2
+
+                        # Tap 4 lần vào màn hình (ở giữa)
+                        for i in range(4):
+                            d.tap([(x, y)])
+                            time.sleep(0.8)
+
+                    # Ấn nút X để thoát Share profile
+                    el_x = WebDriverWait(d, 5).until(
+                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                            'new UiSelector().descriptionContains("Close")'))
+                    )
+                    el_x.click()
+                    log("✅ Đã ấn nút X thoát Share profile")
+
+                    # --- Sau đó thử nhấn lại Edit profile ---
+                    log("🔄 Đang thử lại Edit profile...")
+                    el_edit = WebDriverWait(d, 8).until(
+                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                            'new UiSelector().textContains("Edit profile")'))
+                    )
+                    el_edit.click()
+                    log("✅ Đã nhấn lại Edit profile thành công")
+                    time.sleep(5)
+
+                except Exception as e:
+                    log(f"⚠️ Lỗi khi xử lý Share profile hoặc Edit profile: {e}")
+
             # Nếu không phải Share profile, thì check popup avatar
             try:
                 notnow = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
@@ -2695,6 +2756,54 @@ class AndroidWorker(threading.Thread):
             except Exception as e:
                 log(f"❌ Không thể nhấn Edit profile: {e}")
             
+            # --- Nếu chưa click được Edit profile ---
+            if not clicked:
+                try:
+                    log("🔄 Vào nhầm Share profile...")
+
+                    # Kiểm tra có màn giới thiệu không (ví dụ tìm nút Emoji hoặc text "Share profile")
+                    has_intro = False
+                    try:
+                        WebDriverWait(d, 3).until(
+                            EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                                'new UiSelector().textContains("Share profile")'))
+                        )
+                        has_intro = True
+                        log("📌 Phát hiện màn giới thiệu Share profile")
+                    except:
+                        log("ℹ️ Không thấy màn giới thiệu, bỏ qua bước tap 4 lần")
+
+                    if has_intro:
+                        size = d.get_window_size()
+                        x = size["width"] // 2
+                        y = size["height"] // 2
+
+                        # Tap 4 lần vào màn hình (ở giữa)
+                        for i in range(4):
+                            d.tap([(x, y)])
+                            time.sleep(0.8)
+
+                    # Ấn nút X để thoát Share profile
+                    el_x = WebDriverWait(d, 5).until(
+                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                            'new UiSelector().descriptionContains("Close")'))
+                    )
+                    el_x.click()
+                    log("✅ Đã ấn nút X thoát Share profile")
+
+                    # --- Sau đó thử nhấn lại Edit profile ---
+                    log("🔄 Đang thử lại Edit profile...")
+                    el_edit = WebDriverWait(d, 8).until(
+                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                            'new UiSelector().textContains("Edit profile")'))
+                    )
+                    el_edit.click()
+                    log("✅ Đã nhấn lại Edit profile thành công")
+                    time.sleep(5)
+
+                except Exception as e:
+                    log(f"⚠️ Lỗi khi xử lý Share profile hoặc Edit profile: {e}")
+
             # Điền BIO 
             # 1. Ấn vào label Bio
             el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Bio")')
