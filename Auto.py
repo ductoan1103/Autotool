@@ -2405,6 +2405,43 @@ class AndroidWorker(threading.Thread):
                     log("⚠️ Không tìm thấy mục Post, bỏ qua")
             else:
                 log("❌ Không nhấn được nút + nào")
+            # --- Nếu vào nhầm Share Profile ---
+            if not clicked:
+                try:
+                    log("🔄 Vào nhầm Share Profile...")
+
+                    # Kiểm tra có màn giới thiệu không (ví dụ tìm nút Emoji hoặc text "Share Profile")
+                    has_intro = False
+                    try:
+                        WebDriverWait(d, 3).until(
+                            EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                                'new UiSelector().textContains("Share profile")'))
+                        )
+                        has_intro = True
+                        log("📌 Phát hiện màn giới thiệu Share profile")
+                    except:
+                        log("ℹ️ Không thấy màn giới thiệu, bỏ qua bước tap 4 lần")
+
+                    if has_intro:
+                        size = d.get_window_size()
+                        x = size["width"] // 2
+                        y = size["height"] // 2
+
+                        # Tap 4 lần vào màn hình (ở giữa)
+                        for i in range(4):
+                            d.tap([(x, y)])
+                            time.sleep(0.8)
+
+                    # Ấn nút X để thoát Share profile
+                    el_x = WebDriverWait(d, 5).until(
+                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                            'new UiSelector().descriptionContains("Close")'))
+                    )
+                    el_x.click()
+                    log("✅ Đã ấn nút X thoát Share Profile ")
+                except Exception as e:
+                    log(f"⚠️ Lỗi khi xử lý Share profile hoặc Edit profile: {e}")
+                    
             # 5. Ấn Next 
             for _ in range(2):
                 clicked_next = False
