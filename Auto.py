@@ -556,13 +556,24 @@ def open_and_arrange():
         messagebox.showerror("Lỗi", "Chưa chọn scrcpy.exe")
         return
 
-    devices = get_devices()
+    # Chỉ mở các thiết bị đã tick VIEW
+    devices = get_checked_udids("view")
     if not devices:
-        messagebox.showerror("ADB", "Không tìm thấy thiết bị nào")
+        messagebox.showinfo("Phone View", "Bạn cần tick cột VIEW cho thiết bị muốn mở!")
         return
 
-    # mở scrcpy cho từng device kèm độ phân giải chọn
-    for serial in devices:
+    import pygetwindow as gw
+    # Kiểm tra các cửa sổ scrcpy đã mở cho các thiết bị
+    all_windows = gw.getAllWindows()
+    opened_serials = [w.title.split()[-1] for w in all_windows if w.title and ("scrcpy" in w.title.lower() or "sm-" in w.title.lower())]
+    already_opened = [serial for serial in devices if serial in opened_serials]
+    to_open = [serial for serial in devices if serial not in opened_serials]
+
+    if not to_open:
+        messagebox.showinfo("Phone View", "Các thiết bị đã được mở và sắp xếp rồi!")
+        return
+
+    for serial in to_open:
         subprocess.Popen([
             scrcpy_path,
             "-s", serial,
@@ -576,6 +587,23 @@ def open_and_arrange():
     # lấy tất cả cửa sổ scrcpy
     all_windows = gw.getAllWindows()
     windows = [w for w in all_windows if w.title and ("scrcpy" in w.title.lower() or "sm-" in w.title.lower())]
+
+    # Tự động sắp xếp lại nếu chưa xếp
+    # Sắp xếp theo thứ tự devices đã tick VIEW
+    x0, y0 = 40, 40
+    dx, dy = 420, 40  # khoảng cách giữa các cửa sổ
+    for idx, serial in enumerate(devices):
+        # Tìm cửa sổ scrcpy của serial này
+        win = next((w for w in windows if w.title.endswith(serial)), None)
+        if win:
+            # Nếu cửa sổ chưa ở vị trí mong muốn thì di chuyển
+            target_x = x0 + idx * dx
+            target_y = y0
+            if win.left != target_x or win.top != target_y:
+                try:
+                    win.moveTo(target_x, target_y)
+                except Exception:
+                    pass
 
     if not windows:
         messagebox.showerror("Lỗi", "Không tìm thấy cửa sổ scrcpy")
@@ -2307,732 +2335,640 @@ class AndroidWorker(threading.Thread):
         time.sleep(5)
 
         if enable_uppost.get():
-            try:
-                # UP POST 
-                clicked = False
+            # UP POST 
+            clicked = False
 
-                # 1. Thử theo resource-id (nút + ở thanh dưới)
+            # 1. Thử theo resource-id (nút + ở thanh dưới)
+            try:
+                el = d.find_element(AppiumBy.ID, "com.instagram.android:id/creation_tab")
+                el.click()
+                log("✅ Đã nhấn nút + (resource-id=creation_tab, thanh dưới)")
+                clicked = True
+            except Exception:
+                log("❌ Không tìm thấy nút + bằng resource-id")
+
+            # 2. Thử theo nút + ở góc trái
+            if not clicked:
                 try:
-                    el = d.find_element(AppiumBy.ID, "com.instagram.android:id/creation_tab")
+                    el = d.find_element(
+                        AppiumBy.XPATH,
+                        '//android.widget.LinearLayout[@resource-id="com.instagram.android:id/left_action_bar_buttons"]/android.widget.ImageView'
+                    )
                     el.click()
-                    log("✅ Đã nhấn nút + (resource-id=creation_tab, thanh dưới)")
+                    log("✅ Đã nhấn nút + ở góc trái")
                     clicked = True
                 except Exception:
-                    log("❌ Không tìm thấy nút + bằng resource-id")
+                    log("❌ Không tìm thấy nút + ở góc trái")
 
-                # 2. Thử theo nút + ở góc trái
-                if not clicked:
-                    try:
-                        el = d.find_element(
-                            AppiumBy.XPATH,
-                            '//android.widget.LinearLayout[@resource-id="com.instagram.android:id/left_action_bar_buttons"]/android.widget.ImageView'
-                        )
-                        el.click()
-                        log("✅ Đã nhấn nút + ở góc trái")
+            # 3. Thử theo nút + ở góc phải
+            if not clicked:
+                try:
+                    els_right = d.find_elements(
+                        AppiumBy.XPATH,
+                        '//android.widget.LinearLayout[@resource-id="com.instagram.android:id/right_action_bar_buttons"]/android.widget.ImageView'
+                    )
+                    if len(els_right) >= 2:
+                        els_right[1].click()  # lấy nút thứ 2 (nút +)
+                        log("✅ Đã nhấn nút + ở góc phải")
                         clicked = True
-                    except Exception:
-                        log("❌ Không tìm thấy nút + ở góc trái")
-
-                # 3. Thử theo nút + ở góc phải
-                if not clicked:
-                    try:
-                        els_right = d.find_elements(
-                            AppiumBy.XPATH,
-                            '//android.widget.LinearLayout[@resource-id="com.instagram.android:id/right_action_bar_buttons"]/android.widget.ImageView'
-                        )
-                        if len(els_right) >= 2:
-                            els_right[1].click()  # lấy nút thứ 2 (nút +)
-                            log("✅ Đã nhấn nút + ở góc phải")
-                            clicked = True
-                        else:
-                            log("⚠️ Không tìm thấy đủ nút trong right_action_bar_buttons")
-                    except Exception as e:
-                        log(f"⚠️ Lỗi khi tìm nút + ở góc phải: {e}")
-
-                time.sleep(7)
-
-                # 4. Kiểm tra xem có mục Post không
-                if clicked:
-                    try:
-                        post_el = d.find_element(
-                            AppiumBy.XPATH,
-                            '//android.widget.TextView[@text="Post"]'
-                        )
-                        post_el.click()
-                        log("✅ Đã nhấn vào mục Post")
-                        time.sleep(7)
-                    except Exception:
-                        log("⚠️ Không tìm thấy mục Post, bỏ qua")
-                else:
-                    log("❌ Không nhấn được nút + nào")
-                # 5. Ấn Next 
-                for _ in range(2):
-                    clicked_next = False
-                    for txt in ["Next", "Tiếp"]:
-                        try:
-                            d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
-                            clicked_next = True
-                            time.sleep(4)
-                            break
-                        except Exception:
-                            continue
-                    if not clicked_next:
-                        break
-                time.sleep(8)
-
-                # 6 Nếu xuất hiện popup "Sharing posts" thì bấm OK
-                try:
-                    ok_btn = wait.until(
-                        EC.element_to_be_clickable(
-                            (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
-                        )
-                    )
-                    if ok_btn.is_displayed():
-                        ok_btn.click()
-                        log(f"ℹ️ [{udid}] Đã bấm OK trong popup Sharing posts.")
-                        time.sleep(0.8)
-                except Exception:
-                    pass
-                time.sleep(3)
-
-                # 7 Điền caption vào ô "Add a caption..."
-                try:
-                    caption = (
-                        random.choice(CAPTION_LEADS) + " "
-                        + random.choice(CAPTION_TRAILS) + " "
-                        + random.choice(CAPTION_EMOJIS)
-                    )
-                    # Tìm ô nhập caption (thường là EditText đầu tiên)
-                    caption_input = d.find_element(AppiumBy.CLASS_NAME, "android.widget.EditText")
-                    caption_input.clear()
-                    caption_input.send_keys(caption)
-                    log(f"✅ Đã điền caption: {caption}")
-                    time.sleep(1.5)
+                    else:
+                        log("⚠️ Không tìm thấy đủ nút trong right_action_bar_buttons")
                 except Exception as e:
-                    log(f"⚠️ Không điền được caption: {e}")
-                time.sleep(3)
+                    log(f"⚠️ Lỗi khi tìm nút + ở góc phải: {e}")
 
-                # 8 Ấn Share
-                shared = False
-                for txt in ["Share", "Chia sẻ", "Đăng"]:
+            time.sleep(7)
+
+            # 4. Kiểm tra xem có mục Post không
+            if clicked:
+                try:
+                    post_el = d.find_element(
+                        AppiumBy.XPATH,
+                        '//android.widget.TextView[@text="Post"]'
+                    )
+                    post_el.click()
+                    log("✅ Đã nhấn vào mục Post")
+                    time.sleep(7)
+                except Exception:
+                    log("⚠️ Không tìm thấy mục Post, bỏ qua")
+            else:
+                log("❌ Không nhấn được nút + nào")
+            # 5. Ấn Next 
+            for _ in range(2):
+                clicked_next = False
+                for txt in ["Next", "Tiếp"]:
                     try:
                         d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
-                        shared = True
+                        clicked_next = True
+                        time.sleep(4)
                         break
                     except Exception:
                         continue
+                if not clicked_next:
+                    break
+            time.sleep(8)
 
-                if shared:
-                    log(f"✅ [{udid}] Đã đăng bài mới.")
-                else:
-                    log(f"⚠️ [{udid}] Không bấm được nút Share/Chia sẻ.")
-                time.sleep(15)
+            # 6 Nếu xuất hiện popup "Sharing posts" thì bấm OK
+            try:
+                ok_btn = wait.until(
+                    EC.element_to_be_clickable(
+                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
+                    )
+                )
+                if ok_btn.is_displayed():
+                    ok_btn.click()
+                    log(f"ℹ️ [{udid}] Đã bấm OK trong popup Sharing posts.")
+                    time.sleep(0.8)
+            except Exception:
+                pass
+            time.sleep(3)
+
+            # 7 Điền caption vào ô "Add a caption..."
+            try:
+                caption = (
+                    random.choice(CAPTION_LEADS) + " "
+                    + random.choice(CAPTION_TRAILS) + " "
+                    + random.choice(CAPTION_EMOJIS)
+                )
+                # Tìm ô nhập caption (thường là EditText đầu tiên)
+                caption_input = d.find_element(AppiumBy.CLASS_NAME, "android.widget.EditText")
+                caption_input.clear()
+                caption_input.send_keys(caption)
+                log(f"✅ Đã điền caption: {caption}")
+                time.sleep(1.5)
             except Exception as e:
-                log(f"❌ Lỗi bước up post: {e}")
-                safe_instagram_restart(self, log)
-                # Tiếp tục sang bước Edit Profile hoặc Follow
-                return 
-            
-        if enable_autofollow.get():
-            try:    
-                # AuTo Follow
-                clicked = False
-                # 1. Thử theo content-desc "Search and explore"
+                log(f"⚠️ Không điền được caption: {e}")
+            time.sleep(3)
+
+            # 8 Ấn Share
+            shared = False
+            for txt in ["Share", "Chia sẻ", "Đăng"]:
                 try:
-                    el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search and explore")
+                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
+                    shared = True
+                    break
+                except Exception:
+                    continue
+
+            if shared:
+                log(f"✅ [{udid}] Đã đăng bài mới.")
+            else:
+                log(f"⚠️ [{udid}] Không bấm được nút Share/Chia sẻ.")
+            time.sleep(15)
+            
+        if enable_autofollow.get():  
+            # AuTo Follow
+            clicked = False
+            # 1. Thử theo content-desc "Search and explore"
+            try:
+                el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search and explore")
+                el.click()
+                log("✅ Đã nhấn nút kính lúp (Search and explore)")
+                clicked = True
+            except Exception:
+                log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search and explore'")
+
+            # 2. Thử theo content-desc "Search"
+            if not clicked:
+                try:
+                    el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search")
                     el.click()
-                    log("✅ Đã nhấn nút kính lúp (Search and explore)")
+                    log("✅ Đã nhấn nút kính lúp (Search)")
                     clicked = True
                 except Exception:
-                    log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search and explore'")
+                    log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search'")
 
-                # 2. Thử theo content-desc "Search"
-                if not clicked:
-                    try:
-                        el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search")
-                        el.click()
-                        log("✅ Đã nhấn nút kính lúp (Search)")
-                        clicked = True
-                    except Exception:
-                        log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search'")
+            # 3. Thử bằng UiAutomator textContains
+            if not clicked:
+                try:
+                    el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Search")')
+                    el.click()
+                    log("✅ Đã nhấn nút kính lúp (descriptionContains 'Search')")
+                    clicked = True
+                except Exception:
+                    log("❌ Không tìm thấy nút kính lúp bằng descriptionContains 'Search'")
 
-                # 3. Thử bằng UiAutomator textContains
-                if not clicked:
-                    try:
-                        el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Search")')
-                        el.click()
-                        log("✅ Đã nhấn nút kính lúp (descriptionContains 'Search')")
-                        clicked = True
-                    except Exception:
-                        log("❌ Không tìm thấy nút kính lúp bằng descriptionContains 'Search'")
+            # 4. Thử bằng UiAutomator textContains tiếng Việt
+            if not clicked:
+                try:
+                    el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Tìm kiếm")')
+                    el.click()
+                    log("✅ Đã nhấn nút kính lúp (descriptionContains 'Tìm kiếm')")
+                    clicked = True
+                except Exception:
+                    log("❌ Không tìm thấy nút kính lúp bằng descriptionContains 'Tìm kiếm'")
 
-                # 4. Thử bằng UiAutomator textContains tiếng Việt
-                if not clicked:
-                    try:
-                        el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Tìm kiếm")')
-                        el.click()
-                        log("✅ Đã nhấn nút kính lúp (descriptionContains 'Tìm kiếm')")
-                        clicked = True
-                    except Exception:
-                        log("❌ Không tìm thấy nút kính lúp bằng descriptionContains 'Tìm kiếm'")
+            if not clicked:
+                log("⛔ Không nhấn được nút kính lúp bằng mọi cách!")
+            time.sleep(4)
 
-                if not clicked:
-                    log("⛔ Không nhấn được nút kính lúp bằng mọi cách!")
-                time.sleep(4)
+            # 1. Tìm ô nhập Search
+            input_box = None
+            for how, what in [
+                (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
+                (AppiumBy.CLASS_NAME, "android.widget.EditText"),
+            ]:
+                try:
+                    input_box = d.find_element(how, what)
+                    input_box.click()
+                    time.sleep(2)
+                    break
+                except Exception:
+                    continue
 
-                # 1. Tìm ô nhập Search
-                input_box = None
-                for how, what in [
-                    (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
-                    (AppiumBy.CLASS_NAME, "android.widget.EditText"),
-                ]:
-                    try:
-                        input_box = d.find_element(how, what)
-                        input_box.click()
-                        time.sleep(2)
-                        break
-                    except Exception:
+            if not input_box:
+                log("❌ Không tìm thấy ô nhập Search")
+            else:
+                # 2. Lấy số lượng follow từ biến UI
+                try:
+                    follow_count = phone_follow_count_var.get()
+                except Exception:
+                    follow_count = 10
+
+                FOLLOW_USERNAMES = [
+                    "cristiano","leomessi","neymarjr","k.mbappe","vinijr","shx_pe06","nguyen57506",
+                    "datgia172","levandung9090","buiduc7432","letrong8649","hoangquang2408","vuvted","vuhuu7035",
+                    "lehuu9473","phanquang9903","phamduc2740","lengocquynh227","space.hubx","paraneko_2nd",
+                    "davide_feltrin","valentin_otz","faker","isn_calisthenics","t1lol","asamimichaan","ti_naka_cpz",
+                    "fran_lomeli","t1_gumayusi","keria_minseok"
+                ]
+                follow_list = random.sample(FOLLOW_USERNAMES, min(follow_count, len(FOLLOW_USERNAMES)))
+                followed = 0
+
+                for username in follow_list:
+                    # Tìm lại ô nhập Search
+                    input_box = None
+                    for how, what in [
+                        (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
+                        (AppiumBy.CLASS_NAME, "android.widget.EditText"),
+                    ]:
+                        try:
+                            input_box = d.find_element(how, what)
+                            input_box.click()
+                            break
+                        except Exception:
+                            continue
+
+                    if not input_box:
+                        log("❌ Không tìm thấy ô nhập Search khi follow username mới")
                         continue
 
-                if not input_box:
-                    log("❌ Không tìm thấy ô nhập Search")
-                else:
-                    # 2. Lấy số lượng follow từ biến UI
+                    # Nhập username (send_keys fallback set_value)
                     try:
-                        follow_count = phone_follow_count_var.get()
+                        input_box.clear()
                     except Exception:
-                        follow_count = 10
+                        pass
+                    try:
+                        input_box.send_keys(username)
+                        log(f"⌨️ Nhập username bằng send_keys: {username}")
+                    except Exception:
+                        try:
+                            d.set_value(input_box, username)
+                            log(f"⌨️ Nhập username bằng set_value: {username}")
+                        except Exception as e:
+                            log(f"❌ Không nhập được {username}: {e}")
+                            continue
+                    time.sleep(3)
 
-                    FOLLOW_USERNAMES = [
-                        "cristiano","leomessi","neymarjr","k.mbappe","vinijr","shx_pe06","nguyen57506",
-                        "datgia172","levandung9090","buiduc7432","letrong8649","hoangquang2408","vuvted","vuhuu7035",
-                        "lehuu9473","phanquang9903","phamduc2740","lengocquynh227","space.hubx","paraneko_2nd",
-                        "davide_feltrin","valentin_otz","faker","isn_calisthenics","t1lol","asamimichaan","ti_naka_cpz",
-                        "fran_lomeli","t1_gumayusi","keria_minseok"
-                    ]
-                    follow_list = random.sample(FOLLOW_USERNAMES, min(follow_count, len(FOLLOW_USERNAMES)))
-                    followed = 0
-
-                    for username in follow_list:
-                        # Tìm lại ô nhập Search
-                        input_box = None
-                        for how, what in [
-                            (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
-                            (AppiumBy.CLASS_NAME, "android.widget.EditText"),
-                        ]:
-                            try:
-                                input_box = d.find_element(how, what)
-                                input_box.click()
+                    # Tìm đúng username trong kết quả
+                    found = False
+                    results = d.find_elements(AppiumBy.ID, "com.instagram.android:id/row_search_user_username")
+                    if not results:
+                        results = d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{username}")')
+                    for el in results:
+                        try:
+                            t = (el.text or "").strip()
+                            if t.lower() == username.lower() or username.lower() in t.lower():
+                                el.click()
+                                log(f"✅ Đã nhấn vào username: {username}")
+                                found = True
                                 break
-                            except Exception:
-                                continue
-
-                        if not input_box:
-                            log("❌ Không tìm thấy ô nhập Search khi follow username mới")
+                        except Exception:
                             continue
 
-                        # Nhập username (send_keys fallback set_value)
-                        try:
-                            input_box.clear()
-                        except Exception:
-                            pass
-                        try:
-                            input_box.send_keys(username)
-                            log(f"⌨️ Nhập username bằng send_keys: {username}")
-                        except Exception:
+                    if not found:
+                        log(f"❌ Không tìm thấy username {username} trong kết quả tìm kiếm")
+                        continue
+
+                    time.sleep(5)
+
+                    # Nhấn nút Follow
+                    try:
+                        follow_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Follow")')
+                        if follow_btn.is_enabled() and follow_btn.is_displayed():
+                            follow_btn.click()
+                            log(f"✅ Đã nhấn Follow cho {username}")
+                            time.sleep(1.2)
+                            followed += 1
+
+                            # --- Back sau khi follow ---
+                            back_clicked = False
                             try:
-                                d.set_value(input_box, username)
-                                log(f"⌨️ Nhập username bằng set_value: {username}")
-                            except Exception as e:
-                                log(f"❌ Không nhập được {username}: {e}")
-                                continue
-                        time.sleep(3)
-
-                        # Tìm đúng username trong kết quả
-                        found = False
-                        results = d.find_elements(AppiumBy.ID, "com.instagram.android:id/row_search_user_username")
-                        if not results:
-                            results = d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{username}")')
-                        for el in results:
-                            try:
-                                t = (el.text or "").strip()
-                                if t.lower() == username.lower() or username.lower() in t.lower():
-                                    el.click()
-                                    log(f"✅ Đã nhấn vào username: {username}")
-                                    found = True
-                                    break
-                            except Exception:
-                                continue
-
-                        if not found:
-                            log(f"❌ Không tìm thấy username {username} trong kết quả tìm kiếm")
-                            continue
-
-                        time.sleep(5)
-
-                        # Nhấn nút Follow
-                        try:
-                            follow_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Follow")')
-                            if follow_btn.is_enabled() and follow_btn.is_displayed():
-                                follow_btn.click()
-                                log(f"✅ Đã nhấn Follow cho {username}")
-                                time.sleep(1.2)
-                                followed += 1
-
-                                # --- Back sau khi follow ---
-                                back_clicked = False
-                                try:
-                                    for desc in ["Back", "Điều hướng lên"]:
-                                        try:
-                                            back_btn = d.find_element(AppiumBy.ACCESSIBILITY_ID, desc)
-                                            back_btn.click()
-                                            log(f"🔙 Đã nhấn nút mũi tên lùi ({desc})")
-                                            back_clicked = True
-                                            time.sleep(2)
-                                            break
-                                        except Exception:
-                                            continue
-                                    if not back_clicked:
-                                        btns = d.find_elements(AppiumBy.CLASS_NAME, "android.widget.ImageButton")
-                                        if btns:
-                                            btns[0].click()
-                                            log("🔙 Đã nhấn nút mũi tên lùi")
-                                            back_clicked = True
-                                            time.sleep(2)
-                                    if not back_clicked:
-                                        d.back()
-                                        log("🔙 Đã Ấn Back")
+                                for desc in ["Back", "Điều hướng lên"]:
+                                    try:
+                                        back_btn = d.find_element(AppiumBy.ACCESSIBILITY_ID, desc)
+                                        back_btn.click()
+                                        log(f"🔙 Đã nhấn nút mũi tên lùi ({desc})")
+                                        back_clicked = True
                                         time.sleep(2)
-                                except Exception:
-                                    log("⚠️ Không tìm thấy nút mũi tên lùi sau khi Follow")
-                            else:
-                                log(f"❌ Nút Follow không khả dụng trên profile {username}")
-                        except Exception:
-                            log(f"❌ Không tìm thấy nút Follow trên profile {username}")
+                                        break
+                                    except Exception:
+                                        continue
+                                if not back_clicked:
+                                    btns = d.find_elements(AppiumBy.CLASS_NAME, "android.widget.ImageButton")
+                                    if btns:
+                                        btns[0].click()
+                                        log("🔙 Đã nhấn nút mũi tên lùi")
+                                        back_clicked = True
+                                        time.sleep(2)
+                                if not back_clicked:
+                                    d.back()
+                                    log("🔙 Đã Ấn Back")
+                                    time.sleep(2)
+                            except Exception:
+                                log("⚠️ Không tìm thấy nút mũi tên lùi sau khi Follow")
+                        else:
+                            log(f"❌ Nút Follow không khả dụng trên profile {username}")
+                    except Exception:
+                        log(f"❌ Không tìm thấy nút Follow trên profile {username}")
 
-                        # Nếu đã đủ số lượng thì dừng
-                        if followed >= follow_count:
-                            break
-            except Exception as e:
-                log(f"❌ Lỗi bước Auto Follow: {e}")
-                safe_instagram_restart(self, log)
-                # Tiếp tục sang bước Edit Profile
-                return
+                    # Nếu đã đủ số lượng thì dừng
+                    if followed >= follow_count:
+                        break
             
         if enable_editprofile.get():
+            # --- Vào Profile ---
+            subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
+            log("👤 Đã vào Profile")
+            time.sleep(5)
+
+            # --- Về Home ---
+            subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "100", "1850"])
+            log("👤 Đã về lại Home")
+            time.sleep(2)
+
+            # --- Vào Profile ---
+            subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
+            log("👤 Đã vào Profile")
+            time.sleep(7)
+
+            clicked = False
+            # 1. Thử theo resource-id phổ biến
             try:
-                # --- Vào Profile ---
-                subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
-                log("👤 Đã vào Profile")
+                el = d.find_element(AppiumBy.ID, "com.instagram.android:id/profile_imageview")
+                el.click()
+                log("✅ Đã nhấn vào nút máy ảnh (resource-id)")
+                clicked = True
+            except Exception:
+                log("❌ Không tìm thấy nút máy ảnh bằng resource-id")
+
+            # 2. Thử theo content-desc (nếu có)
+            if not clicked:
+                try:
+                    el = d.find_element(AppiumBy.XPATH, '//android.widget.ImageView[contains(@content-desc, "Add profile photo")]')
+                    el.click()
+                    log("✅ Đã nhấn vào nút máy ảnh (content-desc)")
+                    clicked = True
+                except Exception:
+                    log("❌ Không tìm thấy nút máy ảnh bằng content-desc")
+
+            # 3. Thử theo vị trí đầu tiên của ImageView
+            if not clicked:
+                try:
+                    el = d.find_element(AppiumBy.XPATH, '(//android.widget.ImageView)[1]')
+                    el.click()
+                    log("✅ Đã nhấn vào ImageView đầu tiên (avatar)")
+                    clicked = True
+                except Exception:
+                    log("❌ Không tìm thấy ImageView đầu tiên")
+
+            # 4. Thử theo class name và index
+            if not clicked:
+                try:
+                    els = d.find_elements(AppiumBy.CLASS_NAME, "android.widget.ImageView")
+                    if len(els) > 0:
+                        els[0].click()
+                        log("✅ Đã nhấn vào ImageView[0] (avatar)")
+                        clicked = True
+                    else:
+                        log("❌ Không tìm thấy ImageView nào")
+                except Exception as e:
+                    log(f"⚠️ Lỗi khi tìm ImageView: {e}")
+
+            if not clicked:
+                log("❌ Không nhấn được nút máy ảnh nào. Hãy kiểm tra lại selector bằng Appium Inspector.")
+
+            # Nếu đã nhấn được nút máy ảnh, tiếp tục chọn 'Add profile picture' và 'Choose from library'
+            if clicked:
+                time.sleep(2)
+                try:
+                    # Nhấn vào 'Add profile picture'
+                    add_profile_btn = d.find_element(AppiumBy.XPATH, '//android.widget.TextView[@text="Add profile picture"]')
+                    add_profile_btn.click()
+                    log("✅ Đã nhấn vào 'Add profile picture'")
+                    time.sleep(4)
+                    # Nhấn vào 'Choose from library'
+                    choose_lib_btn = d.find_element(AppiumBy.XPATH, '//android.widget.TextView[@text="Choose from library"]')
+                    choose_lib_btn.click()
+                    log("✅ Đã nhấn vào 'Choose from library'")
+                except Exception as e:
+                    log(f"⚠️ Lỗi khi chọn 'Add profile picture' hoặc 'Choose from library': {e}")
                 time.sleep(8)
 
-                # --- Nhấn Edit profile để chắc chắn đã vào Profile ---
+            # 5. Ấn "Done" (góc phải trên)
+            for txt in ["Done", "Next", "Tiếp", "Xong", "Lưu"]:
                 try:
-                    el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                        'new UiSelector().textContains("Edit profile")')
-                    el.click()
-                    log("✅ Đã nhấn nút Edit profile")
-                    time.sleep(7)
-                except Exception as e:
-                    log(f"❌ Không tìm thấy hoặc không nhấn được nút Edit profile: {e}")
-                    return False
-
-                # === Kiểm tra xem có phải Share profile không ===
-                in_share_profile = False
-                try:
-                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                'new UiSelector().textContains("Copy link")')
-                    in_share_profile = True
+                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
+                    break
                 except Exception:
                     pass
+            time.sleep(8)
 
-                if in_share_profile:
-                    log("⚠️ Vào nhầm Share profile")
-
-                    # Thử tap 4 lần (để bỏ qua màn giới thiệu nếu có)
-                    for i in range(4):
-                        d.tap([(540, 600)])
-                        time.sleep(2)
-
-                    # Thử tìm nút Close/Back/ImageButton
-                    close_btn = None
-                    try:
-                        close_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                                'new UiSelector().descriptionContains("Close")')
-                    except:
-                        try:
-                            close_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                                    'new UiSelector().descriptionContains("Back")')
-                        except:
-                            try:
-                                buttons = d.find_elements(By.CLASS_NAME, "android.widget.ImageButton")
-                                if buttons:
-                                    close_btn = buttons[0]
-                            except:
-                                pass
-
-                    if close_btn:
-                        close_btn.click()
-                        log("✅ Đã thoát khỏi Share profile")
-                        time.sleep(2)
-                    else:
-                        log("❌ Không tìm thấy nút Close/Back để thoát Share profile")
-                        return False
-
-                    # Nhấn lại Edit profile
-                    try:
-                        el = WebDriverWait(d, 8).until(
-                            EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                                'new UiSelector().textContains("Edit profile")'))
-                        )
-                        el.click()
-                        log("✅ Đã nhấn lại Edit profile sau khi thoát Share profile")
-                        time.sleep(2)
-                    except Exception as e2:
-                        log(f"❌ Không thể nhấn lại Edit profile: {e2}")
-                        return False
-
-                else:
-                    # Nếu không phải Share profile, thì check popup avatar
-                    try:
-                        notnow = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                                'new UiSelector().textContains("Not now")')
-                        notnow.click()
-                        log("✅ Đã ấn Not now ở popup tạo avatar")
-                    except Exception:
-                        pass  # Không có popup thì bỏ qua
-
-                # Điền BIO 
-                # 1. Ấn vào label Bio
-                el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Bio")')
-                el.click()
-                log("✅ Đã nhấn vào label Bio")
-                time.sleep(3)
-
-                # 2. Tạo bio ngẫu nhiên từ BIO_LINES + emoji
-                bio = random.choice(BIO_LINES) + " " + random.choice(CAPTION_EMOJIS)
-                time.sleep(3)
-
-                # 3. Điền bio vào ô nhập
-                input_bio = d.find_element(AppiumBy.CLASS_NAME, "android.widget.EditText")
-                input_bio.clear()
-                input_bio.send_keys(bio)
-                log(f"✅ Đã điền bio: {bio}")
-                time.sleep(3)
-
-                # 4) Lưu: icon ✓ góc trên phải hoặc nút Save/Xong/Lưu
-                saved = False
-                # a) thử theo text
-                for txt in ["Save", "Lưu", "Done", "Xong", "✓"]:
-                    try:
-                        d.find_element(
-                            AppiumBy.ANDROID_UIAUTOMATOR,
-                            f'new UiSelector().textContains("{txt}")'
-                        ).click()
-                        saved = True
-                        break
-                    except Exception:
-                        pass
-                # b) thử content-desc của icon ✓
-                if not saved:
-                    for how, what in [
-                        (AppiumBy.ACCESSIBILITY_ID, "Done"),
-                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Done")'),
-                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionMatches("(?i)(save|done|xong|lưu|check)")'),
-                    ]:
-                        try:
-                            el = d.find_element(how, what)
-                            el.click()
-                            saved = True
-                            break
-                        except Exception:
-                            continue
-
-                if saved:
-                    log(f"✅ [{udid}] Đã cập nhật Bio")
-                else:
-                    log(f"⚠️ [{udid}] Không bấm được nút Lưu/✓ trong màn Bio.")
-
-                time.sleep(6)
-
-                # Chọn Gender 
-                # 1. Cuộn xuống để thấy label Gender (nếu cần)
-                d.swipe(500, 1500, 500, 500, 500)  # Điều chỉnh tọa độ nếu cần
-                time.sleep(3)
-
-                # 2. Ấn vào label Gender (Prefer not to say)
-                el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Prefer not to say")')
-                el.click()
-                log("✅ Đã nhấn vào label Gender")
-                time.sleep(3)
-
-                # 3. Chọn Female
-                female = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Female")')
-                female.click()
-                log("✅ Đã chọn Female")
-
-                time.sleep(0.5)
-
-                # 6) Lưu: icon ✓ góc trên phải hoặc nút Save/Xong/Lưu
-                saved = False
-                # a) thử theo text
-                for txt in ["Save", "Lưu", "Done", "Xong", "✓"]:
-                    try:
-                        d.find_element(
-                            AppiumBy.ANDROID_UIAUTOMATOR,
-                            f'new UiSelector().textContains("{txt}")'
-                        ).click()
-                        saved = True
-                        break
-                    except Exception:
-                        pass
-                # b) thử content-desc của icon ✓
-                if not saved:
-                    for how, what in [
-                        (AppiumBy.ACCESSIBILITY_ID, "Done"),
-                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Done")'),
-                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionMatches("(?i)(save|done|xong|lưu|check)")'),
-                    ]:
-                        try:
-                            el = d.find_element(how, what)
-                            el.click()
-                            saved = True
-                            break
-                        except Exception:
-                            continue
-
-                if saved:
-                    log(f"✅ [{udid}] Đã cập nhật Bio")
-                else:
-                    log(f"⚠️ [{udid}] Không bấm được nút Lưu/✓ trong màn Gender.")
-                time.sleep(6)
-
-                # UP AVATAR 
-                # 1. Cuộn lên để thấy "Change profile picture" (nếu cần)
-                d.swipe(500, 500, 500, 1500, 500)  # Điều chỉnh nếu cần
-                time.sleep(3)
-
-                # 2. Tìm và ấn vào "Change profile picture"
-                el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Change profile picture")')
-                el.click()
-                log("✅ Đã nhấn Change profile picture")
-                time.sleep(3)
-
-                # 3. Chọn "Choose from library"
-                choose = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Choose from library")')
-                choose.click()
-                log("✅ Đã chọn Choose from library")
-                time.sleep(6)
-
-                # 5. Ấn "Done" (góc phải trên)
-                for txt in ["Done", "Next", "Tiếp", "Xong", "Lưu"]:
-                    try:
-                        d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
-                        break
-                    except Exception:
-                        pass
-                time.sleep(13)
-            except Exception as e:
-                log(f"❌ Lỗi bước Edit Profile: {e}")
-                safe_instagram_restart(self, log)
-                return
-            
-        if enable_proaccount.get():
+            # 1. Thử với Button
             try:
-                # Bật Chuyên Nghiệp 
-                # --- Tắt app Instagram ---
-                subprocess.call(["adb", "-s", self.udid, "shell", "am", "force-stop", "com.instagram.android"])
-                log("🛑 Đã tắt app Instagram")
-                time.sleep(3)
+                edit_btn = d.find_element(AppiumBy.XPATH, '//android.widget.Button[@text="Edit profile"]')
+                edit_btn.click()
+                log("✅ Đã nhấn vào nút Edit Profile (Button)")
+                clicked = True
+            except Exception:
+                log("❌ Không tìm thấy nút Edit Profile dạng Button")
 
-                # --- Khởi động lại Instagram ---
-                subprocess.call([
-                    "adb", "-s", self.udid, "shell", "monkey", "-p", "com.instagram.android", "-c", "android.intent.category.LAUNCHER", "1"
-                ])
-                log("🔄 Đã mở lại app Instagram")
-                time.sleep(15)  # chờ app load
-
-                # --- Vào Profile ---
-                subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
-                log("👤 Đã vào Profile")
-                time.sleep(2)
-
-                # --- Về Home ---
-                subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "100", "1850"])
-                log("👤 Đã về lại Home")
-                time.sleep(2)
-
-                # --- Vào Profile ---
-                subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
-                log("👤 Đã vào Profile")
-                time.sleep(5)
-
-                # 1. Cuộn lên để thấy Edit profile (nếu cần)    
-                d.swipe(500, 500, 500, 1500, 500)
-                time.sleep(6)
-
-                # --- Nhấn Edit profile để chắc chắn đã vào Profile ---
+            # 2. Thử với TextView
+            if not clicked:
                 try:
-                    el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                        'new UiSelector().textContains("Edit profile")')
-                    el.click()
-                    log("✅ Đã nhấn nút Edit profile")
-                    time.sleep(7)
-                except Exception as e:
-                    log(f"❌ Không tìm thấy hoặc không nhấn được nút Edit profile: {e}")
-                    return False
-
-                # === Kiểm tra xem có phải Share profile không ===
-                in_share_profile = False
-                try:
-                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                'new UiSelector().textContains("Copy link")')
-                    in_share_profile = True
+                    edit_btn = d.find_element(AppiumBy.XPATH, '//android.widget.TextView[@text="Edit profile"]')
+                    edit_btn.click()
+                    log("✅ Đã nhấn vào nút Edit Profile (TextView)")
+                    clicked = True
                 except Exception:
-                    pass
+                    log("❌ Không tìm thấy nút Edit Profile dạng TextView")
 
-                if in_share_profile:
-                    log("⚠️ Vào nhầm Share profile")
-
-                    # Thử tap 4 lần (để bỏ qua màn giới thiệu nếu có)
-                    for i in range(4):
-                        d.tap([(540, 600)])
-                        time.sleep(1)
-
-                    # Thử tìm nút Close/Back/ImageButton
-                    close_btn = None
-                    try:
-                        close_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                                'new UiSelector().descriptionContains("Close")')
-                    except:
-                        try:
-                            close_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                                    'new UiSelector().descriptionContains("Back")')
-                        except:
-                            try:
-                                buttons = d.find_elements(By.CLASS_NAME, "android.widget.ImageButton")
-                                if buttons:
-                                    close_btn = buttons[0]
-                            except:
-                                pass
-
-                    if close_btn:
-                        close_btn.click()
-                        log("✅ Đã thoát khỏi Share profile")
-                        time.sleep(2)
-                    else:
-                        log("❌ Không tìm thấy nút Close/Back để thoát Share profile")
-                        return False
-
-                    # Nhấn lại Edit profile
-                    try:
-                        el = WebDriverWait(d, 8).until(
-                            EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                                'new UiSelector().textContains("Edit profile")'))
-                        )
-                        el.click()
-                        log("✅ Đã nhấn lại Edit profile sau khi thoát Share profile")
-                        time.sleep(2)
-                    except Exception as e2:
-                        log(f"❌ Không thể nhấn lại Edit profile: {e2}")
-                        return False
-
-                else:
-                    # Nếu không phải Share profile, thì check popup avatar
-                    try:
-                        notnow = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                                'new UiSelector().textContains("Not now")')
-                        notnow.click()
-                        log("✅ Đã ấn Not now ở popup tạo avatar")
-                    except Exception:
-                        pass  # Không có popup thì bỏ qua
-
-                # 2) Cuộn và bấm "Switch to professional account"
-                if not _scroll_into_view_by_text(d, "Switch to professional"):
-                    log(f"⚠️ [{udid}] Không tìm thấy mục 'Switch to professional account'.")
-                    return
-                wait.until(EC.element_to_be_clickable(
-                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Switch to professional")'))
-                ).click()
-                time.sleep(10)
-
-                # 3) Màn giới thiệu → Next
-                for txt in ["Next", "Tiếp"]:
-                    try:
-                        d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{txt}")').click()
-                        break
-                    except Exception:
-                        pass
-                time.sleep(6)
-
-                # 4) Màn "What best describes you?" → chọn Category
-                # 4a) Tap vào ô "Search categories" (hoặc "Search")
+            # 3. Thử với resource-id phổ biến
+            if not clicked:
                 try:
-                    wait.until(EC.element_to_be_clickable(
-                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Search")')
-                    )).click()
+                    edit_btn = d.find_element(AppiumBy.ID, 'com.instagram.android:id/edit_profile_button')
+                    edit_btn.click()
+                    log("✅ Đã nhấn vào nút Edit Profile (resource-id)")
+                    clicked = True
                 except Exception:
-                    # nếu không bấm được ô search, vẫn có thể chọn trực tiếp trong list
-                    pass
+                    log("❌ Không tìm thấy nút Edit Profile bằng resource-id")
 
-                # 4b) Lấy giá trị category và account_type từ settings UI
-                category = pro_category_var.get() if 'pro_category_var' in globals() else "Reel creator"
-                account_type = pro_type_var.get() if 'pro_type_var' in globals() else "Creator"
+            # 4. Thử với contains(@text)
+            if not clicked:
+                try:
+                    edit_btn = d.find_element(AppiumBy.XPATH, '//*[contains(@text, "Edit profile")]')
+                    edit_btn.click()
+                    log("✅ Đã nhấn vào nút Edit Profile (contains)")
+                    clicked = True
+                except Exception:
+                    log("❌ Không tìm thấy nút Edit Profile với contains(@text)")
 
-                target = (category or "").strip()
-                if target:
-                    if not _scroll_into_view_by_text(d, target):
-                        log(f"⚠️ [{udid}] Không tìm thấy category '{target}'.")
-                        return
-                    # chọn đúng item
-                    wait.until(EC.element_to_be_clickable(
-                        (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{target}")'))
+            if not clicked:
+                log("❌ Không nhấn được nút Edit Profile bằng bất kỳ cách nào. Hãy kiểm tra lại selector bằng Appium Inspector.")
+            time.sleep(6)
+
+            # Check popup avatar
+            try:
+                notnow = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
+                                        'new UiSelector().textContains("Not now")')
+                notnow.click()
+                log("✅ Đã ấn Not now ở popup tạo avatar")
+            except Exception:
+                pass
+            time.sleep(3)   
+
+            # Điền BIO 
+            # 1. Ấn vào label Bio
+            el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Bio")')
+            el.click()
+            log("✅ Đã nhấn vào label Bio")
+            time.sleep(3)
+
+            # 2. Tạo bio ngẫu nhiên từ BIO_LINES + emoji
+            bio = random.choice(BIO_LINES) + " " + random.choice(CAPTION_EMOJIS)
+            time.sleep(3)
+
+            # 3. Điền bio vào ô nhập
+            input_bio = d.find_element(AppiumBy.CLASS_NAME, "android.widget.EditText")
+            input_bio.clear()
+            input_bio.send_keys(bio)
+            log(f"✅ Đã điền bio: {bio}")
+            time.sleep(3)
+
+            # 4) Lưu: icon ✓ góc trên phải hoặc nút Save/Xong/Lưu
+            saved = False
+            # a) thử theo text
+            for txt in ["Save", "Lưu", "Done", "Xong", "✓"]:
+                try:
+                    d.find_element(
+                        AppiumBy.ANDROID_UIAUTOMATOR,
+                        f'new UiSelector().textContains("{txt}")'
                     ).click()
-                    time.sleep(4)
-
-                #Tap display on profile
-                subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "970", "900"])
-                log("✅ Tap Display On Profile")
-                time.sleep(4)
-
-                # 4d) Bấm "Switch to professional account"
-                for txt in ["Switch to professional account"]:
+                    saved = True
+                    break
+                except Exception:
+                    pass
+            # b) thử content-desc của icon ✓
+            if not saved:
+                for how, what in [
+                    (AppiumBy.ACCESSIBILITY_ID, "Done"),
+                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Done")'),
+                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionMatches("(?i)(save|done|xong|lưu|check)")'),
+                ]:
                     try:
-                        if not _scroll_into_view_by_text(d, txt, max_swipes=2):
-                            pass
-                        d.find_element(
-                            AppiumBy.ANDROID_UIAUTOMATOR,
-                            f'new UiSelector().textContains("{txt}")'
-                        ).click()
+                        el = d.find_element(how, what)
+                        el.click()
+                        saved = True
                         break
                     except Exception:
                         continue
-                time.sleep(12)
 
-                # 5) Màn "What type of professional are you?" → chọn Creator/Business → Next
-                typ = (account_type or "").strip().lower()
-                target_type = "Creator" if typ != "business" else "Business"
+            if saved:
+                log(f"✅ [{udid}] Đã cập nhật Bio")
+            else:
+                log(f"⚠️ [{udid}] Không bấm được nút Lưu/✓ trong màn Bio.")
+
+            time.sleep(6)
+
+            # Chọn Gender 
+            # 1. Cuộn xuống để thấy label Gender (nếu cần)
+            d.swipe(500, 1500, 500, 500, 500)  # Điều chỉnh tọa độ nếu cần
+            time.sleep(3)
+
+            # 2. Ấn vào label Gender (Prefer not to say)
+            el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Prefer not to say")')
+            el.click()
+            log("✅ Đã nhấn vào label Gender")
+            time.sleep(3)
+
+            # 3. Chọn Female
+            female = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Female")')
+            female.click()
+            log("✅ Đã chọn Female")
+
+            time.sleep(0.5)
+
+            # 6) Lưu: icon ✓ góc trên phải hoặc nút Save/Xong/Lưu
+            saved = False
+            # a) thử theo text
+            for txt in ["Save", "Lưu", "Done", "Xong", "✓"]:
                 try:
-                    wait.until(EC.element_to_be_clickable(
-                        (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{target_type}")'))
-                    ).click()
-                except Exception:
                     d.find_element(
                         AppiumBy.ANDROID_UIAUTOMATOR,
-                        f'new UiSelector().textContains("{target_type}")'
+                        f'new UiSelector().textContains("{txt}")'
                     ).click()
-                time.sleep(0.3)
-                for txt in ["Next", "Tiếp"]:
+                    saved = True
+                    break
+                except Exception:
+                    pass
+            # b) thử content-desc của icon ✓
+            if not saved:
+                for how, what in [
+                    (AppiumBy.ACCESSIBILITY_ID, "Done"),
+                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Done")'),
+                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionMatches("(?i)(save|done|xong|lưu|check)")'),
+                ]:
                     try:
-                        d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{txt}")').click()
+                        el = d.find_element(how, what)
+                        el.click()
+                        saved = True
                         break
                     except Exception:
-                        pass
+                        continue
 
-                log(f"✅ [{udid}] Đã chuyển sang Professional: Category='{category}', Type={target_type}.")
-            except Exception as e:
-                log(f"❌ Lỗi bước Edit Profile: {e}")
+            if saved:
+                log(f"✅ [{udid}] Đã cập nhật Bio")
+            else:
+                log(f"⚠️ [{udid}] Không bấm được nút Lưu/✓ trong màn Gender.")
+            time.sleep(6)
+
+            # 4. Cuộn xuống để thấy nút switch to professional account
+            d.swipe(500, 1500, 500, 500, 500)
+            time.sleep(3)
+            
+        if enable_proaccount.get():
+            # 2) Cuộn và bấm "Switch to professional account"
+            if not _scroll_into_view_by_text(d, "Switch to professional"):
+                log(f"⚠️ [{udid}] Không tìm thấy mục 'Switch to professional account'.")
                 return
+            wait.until(EC.element_to_be_clickable(
+                (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Switch to professional")'))
+            ).click()
+            time.sleep(10)
+
+            # 3) Màn giới thiệu → Next
+            for txt in ["Next", "Tiếp"]:
+                try:
+                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{txt}")').click()
+                    break
+                except Exception:
+                    pass
+            time.sleep(6)
+
+            # 4) Màn "What best describes you?" → chọn Category
+            # 4a) Tap vào ô "Search categories" (hoặc "Search")
+            try:
+                wait.until(EC.element_to_be_clickable(
+                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Search")')
+                )).click()
+            except Exception:
+                # nếu không bấm được ô search, vẫn có thể chọn trực tiếp trong list
+                pass
+
+            # 4b) Lấy giá trị category và account_type từ settings UI
+            category = pro_category_var.get() if 'pro_category_var' in globals() else "Reel creator"
+            account_type = pro_type_var.get() if 'pro_type_var' in globals() else "Creator"
+
+            target = (category or "").strip()
+            if target:
+                if not _scroll_into_view_by_text(d, target):
+                    log(f"⚠️ [{udid}] Không tìm thấy category '{target}'.")
+                    return
+                # chọn đúng item
+                wait.until(EC.element_to_be_clickable(
+                    (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{target}")'))
+                ).click()
+                time.sleep(4)
+
+            #Tap display on profile
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "970", "900"])
+            log("✅ Tap Display On Profile")
+            time.sleep(4)
+
+            # 4d) Bấm "Switch to professional account"
+            for txt in ["Switch to professional account"]:
+                try:
+                    if not _scroll_into_view_by_text(d, txt, max_swipes=2):
+                        pass
+                    d.find_element(
+                        AppiumBy.ANDROID_UIAUTOMATOR,
+                        f'new UiSelector().textContains("{txt}")'
+                    ).click()
+                    break
+                except Exception:
+                    continue
+            time.sleep(12)
+
+            # 5) Màn "What type of professional are you?" → chọn Creator/Business → Next
+            typ = (account_type or "").strip().lower()
+            target_type = "Creator" if typ != "business" else "Business"
+            try:
+                wait.until(EC.element_to_be_clickable(
+                    (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{target_type}")'))
+                ).click()
+            except Exception:
+                d.find_element(
+                    AppiumBy.ANDROID_UIAUTOMATOR,
+                    f'new UiSelector().textContains("{target_type}")'
+                ).click()
+            time.sleep(0.3)
+            for txt in ["Next", "Tiếp"]:
+                try:
+                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{txt}")').click()
+                    break
+                except Exception:
+                    pass
+
+            log(f"✅ [{udid}] Đã chuyển sang Professional: Category='{category}', Type={target_type}.")
 
         # Bật chế độ máy bay và tự chạy lại phiên mới
         try:
@@ -3432,7 +3368,8 @@ def save_config():
         "save_format": globals().get("save_format", ""),
         "photo_folder_phone": globals().get("photo_folder_phone", ""),
         "ig_app_choice": globals().get("phone_ig_app_var", tk.StringVar(value="instagram")).get(),
-        "scrcpy_path": globals().get("scrcpy_path", "")
+        "scrcpy_path": globals().get("scrcpy_path", ""),
+        "hidden_chrome": hidden_chrome_var.get()
     }
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
@@ -3452,6 +3389,11 @@ def load_config():
                 if "ig_app_choice" in cfg:
                     try:
                         phone_ig_app_var.set(cfg["ig_app_choice"])
+                    except Exception:
+                        pass
+                if "hidden_chrome" in cfg:
+                    try:
+                        hidden_chrome_var.set(cfg["hidden_chrome"])
                     except Exception:
                         pass
                 if ava_folder_path:
@@ -3690,6 +3632,9 @@ def build_mobile_chrome_driver(proxy: str | None, log_fn=log):
     mobile_options.add_argument("--disable-background-networking")
     mobile_options.add_argument("--disable-background-timer-throttling")
     mobile_options.add_argument("--disable-client-side-phishing-detection")
+    # Thêm headless nếu được chọn
+    if hidden_chrome_var.get():
+        mobile_options.add_argument("--headless=new")
 
     # Emulate iPhone 15 Pro (UA + viewport)
     mobile_emulation = {
@@ -5823,6 +5768,7 @@ for i in range(5):
 
 # ========================= KHỐI GIỮA: Desktop Settings =========================
 desktop_settings = tk.LabelFrame(app, text="Desktop Settings", bg="white", font=("Arial", 11, "bold"))
+hidden_chrome_var = tk.BooleanVar(value=False)
 
 def _position_desktop_settings():
     """Đặt Desktop Settings sát cạnh 'Định dạng lưu' (khối trái)."""
@@ -5837,6 +5783,8 @@ app.after(60, _position_desktop_settings)
 # --- Cột trái trong Desktop Settings: 4 checkbox + B1 + B2 + B3 (xếp dọc) ---
 col_left = tk.Frame(desktop_settings, bg="white")
 col_left.grid(row=0, column=0, padx=6, sticky="n")  # padding nhỏ để sát như hình
+# Ô tích Ẩn Chrome (headless)
+tk.Checkbutton(col_left, text="Ẩn Chrome (Headless)", variable=hidden_chrome_var, bg="white").pack(anchor="w", pady=2)
 
 follow_var   = tk.BooleanVar(value=True)
 bioava_var   = tk.BooleanVar(value=True)
@@ -5975,6 +5923,8 @@ m_bio_text_mirror = None
 col_left  = tk.Frame(mobile_settings, bg="white")
 col_right = tk.Frame(mobile_settings, bg="white")
 col_left.grid(row=0, column=0, padx=6,  pady=6, sticky="n")
+# Ô tích Ẩn Chrome (headless) cho Mobile
+tk.Checkbutton(col_left, text="Ẩn Chrome (Headless)", variable=hidden_chrome_var, bg="white").pack(anchor="w", pady=2)
 col_right.grid(row=0, column=1, padx=14, pady=6, sticky="n")
 
 # ---- 4 ô tích bên trái (dùng lại tên biến cũ) ----
@@ -6312,7 +6262,7 @@ combo_res.bind("<<ComboboxSelected>>", change_resolution)
 combo_res.pack(anchor="w", padx=PHONE_PADX, pady=(0, PHONE_PADY))
 
 # --- Nút mở & sắp xếp scrcpy ---
-ttk.Button(phone_settings, text="Mở & Sắp xếp Phone View", command=open_and_arrange)\
+ttk.Button(phone_settings, text="Sắp xếp Phone View", command=open_and_arrange)\
     .pack(anchor="w", padx=PHONE_PADX, pady=(0, PHONE_PADY))
 
 # ======================= Network Mode =======================
@@ -6427,7 +6377,9 @@ actions_bottom.grid_columnconfigure(1, weight=1)
 
 ttk.Button(actions_bottom, text="Chọn scrcpy.exe", command=choose_scrcpy_path)\
    .grid(row=0, column=0, sticky="we", padx=(0, 3))
-
+ttk.Button(actions_bottom, text="Mở View Phone",
+           command=lambda: open_scrcpy_for_list(get_checked_udids("view")))\
+   .grid(row=0, column=1, sticky="we", padx=(3, 0))
 # ======================= CHỌN APP IG: Instagram | Instagram Lite =======================
 def _persist_ig_choice():
     try:
