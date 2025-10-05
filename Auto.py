@@ -256,14 +256,14 @@ def clear_instagram_and_warp(udid: str):
     Clear dữ liệu Instagram + WARP + Super Proxy.
     """
     # ========== Instagram ==========
-    clear_app_data(udid, "com.instagram.android")
-    time.sleep(1.0)
+    adb_shell(udid, "pm", "clear", "--user", "0", "--cache-only", "com.instagram.android")
+    log(f"🧹 [{udid}] pm clear --cache-only com.instagram.android: OK")
     adb_shell(udid, "am", "force-stop", "com.instagram.android")
     time.sleep(1.0)
 
     # ========== Instagram Lite ==========
-    clear_app_data(udid, "com.instagram.lite")
-    time.sleep(1.0)
+    adb_shell(udid, "pm", "clear", "--user", "0", "--cache-only", "com.instagram.lite")
+    log(f"🧹 [{udid}] pm clear --cache-only com.instagram.lite: OK")
     adb_shell(udid, "am", "force-stop", "com.instagram.lite")
     time.sleep(1.0)
 
@@ -3054,6 +3054,137 @@ class AndroidWorker(threading.Thread):
 
             log(f"✅ [{udid}] Đã chuyển sang Professional: Category='{category}', Type={target_type}.")
 
+        # --- Tắt app Instagram ---
+        subprocess.call(["adb", "-s", self.udid, "shell", "am", "force-stop", "com.instagram.android"])
+        log("🛑 Đã tắt app Instagram")
+        time.sleep(3)
+
+        # --- Khởi động lại Instagram ---
+        subprocess.call([
+            "adb", "-s", self.udid, "shell", "monkey", "-p", "com.instagram.android", "-c", "android.intent.category.LAUNCHER", "1"
+        ])
+        log("🔄 Đã mở lại app Instagram")
+        time.sleep(15)  # chờ app load
+
+        # --- Vào Profile ---
+        subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
+        log("👤 Đã vào Profile")
+        time.sleep(5)
+
+        # --- Về Home ---
+        subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "100", "1850"])
+        log("👤 Đã về lại Home")
+        time.sleep(5)
+
+        # --- Vào Profile ---
+        subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
+        log("👤 Đã vào Profile")
+        time.sleep(5)
+
+        # ================================ ĐĂNG XUẤT ======================================
+        # 2) Tap menu ba gạch (tọa độ góc trên phải)
+        try:
+            size = d.get_window_size()
+            x = int(size["width"] * 0.95)
+            y = int(size["height"] * 0.08)
+            d.tap([(x, y)])
+            log(f"✅ Tap menu 3 gạch bằng tọa độ ({x},{y})")
+        except Exception as e:
+            log(f"⚠️ Không tap được menu 3 gạch: {e}")
+            return
+        time.sleep(6)
+
+        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
+        d.swipe(500, 1500, 500, 500, 500) 
+        time.sleep(1)
+        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
+        d.swipe(500, 1500, 500, 500, 500)  
+        time.sleep(1)
+        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
+        d.swipe(500, 1500, 500, 500, 500)
+        time.sleep(1)
+        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
+        d.swipe(500, 1500, 500, 500, 500)
+        time.sleep(1)
+        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
+        d.swipe(500, 1500, 500, 500, 500)
+        time.sleep(1)
+        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
+        d.swipe(500, 1500, 500, 500, 500)
+        time.sleep(1)
+        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
+        d.swipe(500, 1500, 500, 500, 500)
+        time.sleep(1)
+        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
+        d.swipe(500, 1500, 500, 500, 500)
+        time.sleep(1)
+        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
+        d.swipe(500, 1500, 500, 500, 500)
+        time.sleep(5)
+
+        # Chỉ tìm và nhấn nút "Log out"
+        try:
+            logout_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
+                'new UiSelector().text("Log out")')
+            logout_btn.click()
+            log("✅ Đã nhấn nút Log out")
+            time.sleep(2)
+            # Nếu hiện popup lưu thông tin, nhấn "Not now", không có thì bỏ qua
+            try:
+                not_now_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
+                    'new UiSelector().text("Not now")')
+                not_now_btn.click()
+                log("✅ Đã nhấn nút Not now ở popup lưu thông tin")
+                time.sleep(3)
+            except Exception:
+                pass
+            # Nếu hiện popup xác nhận "Log out of your account?", nhấn tiếp "Log out"
+            try:
+                confirm_logout_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
+                    'new UiSelector().text("Log out")')
+                confirm_logout_btn.click()
+                log("✅ Đã xác nhận Log out ở popup xác nhận")
+                time.sleep(13)
+            except Exception:
+                pass
+        except Exception as e:
+            log(f"⚠️ Không tìm thấy hoặc không nhấn được nút Log out: {e}")
+
+        # ================================ REMOVE PROFILE ======================================
+        try:
+            # Tap đúng tọa độ 3 chấm (đã chỉnh lại cho chuẩn)
+            d.tap([(1030, 130)])
+            log("✅ Đã nhấn vào 3 chấm trên màn hình profile tại (1030, 130)")
+            time.sleep(4)
+
+            # Nhấn nút "Remove profiles from this device"
+            remove_profiles_btn = d.find_element(
+                AppiumBy.ANDROID_UIAUTOMATOR,
+                'new UiSelector().textContains("Remove profiles")'
+            )
+            remove_profiles_btn.click()
+            log("✅ Đã nhấn Remove profiles from this device")
+            time.sleep(8)
+
+            # Nhấn nút "Remove" bên cạnh tài khoản
+            remove_btn = d.find_element(
+                AppiumBy.ANDROID_UIAUTOMATOR,
+                'new UiSelector().text("Remove")'
+            )
+            remove_btn.click()
+            log("✅ Đã nhấn Remove bên cạnh tài khoản")
+            time.sleep(3)
+
+            # Xác nhận Remove ở popup
+            confirm_remove_btn = d.find_element(
+                AppiumBy.ANDROID_UIAUTOMATOR,
+                'new UiSelector().text("Remove")'
+            )
+            confirm_remove_btn.click()
+            log("✅ Đã xác nhận Remove ở popup")
+        except Exception as e:
+            log(f"⚠️ Không thực hiện được thao tác Remove profile: {e}")
+    
         # Bật chế độ máy bay và tự chạy lại phiên mới
         try:
             adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
