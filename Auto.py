@@ -2647,8 +2647,25 @@ class AndroidWorker(threading.Thread):
                         if follow_btn.is_enabled() and follow_btn.is_displayed():
                             follow_btn.click()
                             log(f"✅ Đã nhấn Follow cho {username}")
-                            time.sleep(1.2)
+                            time.sleep(3)
                             followed += 1
+
+                            # --- Kiểm tra popup block follow ---
+                            try:
+                                popup = d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Try Again Later")')
+                                if popup:
+                                    log("⛔ Instagram đã block follow: Try Again Later popup xuất hiện.")
+                                    # Ấn OK để đóng popup
+                                    try:
+                                        ok_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
+                                        ok_btn.click()
+                                        log("✅ Đã ấn OK để đóng popup block follow.")
+                                    except Exception:
+                                        log("⚠️ Không tìm thấy nút OK trong popup.")
+                                    break  # Dừng thao tác follow tiếp
+                            except Exception as e:
+                                log(f"⚠️ Lỗi khi kiểm tra popup block follow: {e}")
+                            time.sleep(2)
 
                             # --- Back sau khi follow ---
                             back_clicked = False
@@ -3122,7 +3139,6 @@ class AndroidWorker(threading.Thread):
 
         # --- Điền email vào ô nhập ---
         try:
-            # tìm đúng class MultiAutoCompleteTextView
             input_box = WebDriverWait(d, 10).until(
                 EC.presence_of_element_located((AppiumBy.CLASS_NAME, "android.widget.MultiAutoCompleteTextView"))
             )
@@ -3133,28 +3149,88 @@ class AndroidWorker(threading.Thread):
             time.sleep(1)
 
             # --- Nhấn Next ---
+            # Tìm ViewGroup clickable nằm ngay dưới ô nhập email (cái gần nhất)
             groups = d.find_elements(AppiumBy.CLASS_NAME, "android.view.ViewGroup")
             clickable_groups = [g for g in groups if g.get_attribute("clickable") == "true"]
 
-            if clickable_groups:
-                # chọn group có tọa độ Y lớn nhất (nút nằm sát đáy màn hình)
-                def get_center_y(elem):
-                    bounds = elem.get_attribute("bounds")  # dạng [x1,y1][x2,y2]
-                    nums = [int(n) for n in re.findall(r"\d+", bounds)]
-                    return (nums[1] + nums[3]) // 2  # trung bình y1,y2
+            # Lấy center Y của input_box
+            bounds_input = input_box.get_attribute("bounds")
+            nums_input = [int(n) for n in re.findall(r"\d+", bounds_input)]
+            y_input = (nums_input[1] + nums_input[3]) // 2
 
-                next_btn = max(clickable_groups, key=get_center_y)
+            # Chọn ViewGroup clickable có center Y > y_input và diff nhỏ nhất (ngay dưới)
+            next_btn = None
+            min_diff = None
+            for g in clickable_groups:
+                try:
+                    bounds = g.get_attribute("bounds")
+                    nums = [int(n) for n in re.findall(r"\d+", bounds)]
+                    y_center = (nums[1] + nums[3]) // 2
+                    if y_center > y_input:
+                        diff = y_center - y_input
+                        if min_diff is None or diff < min_diff:
+                            min_diff = diff
+                            next_btn = g
+                except Exception:
+                    continue
+
+            if next_btn:
                 next_btn.click()
-                log("👉 Đã bấm 'Next' sau khi điền email")
+                log("👉 Đã bấm 'Next' (ViewGroup ngay dưới ô nhập email)")
                 time.sleep(2)
-                return True
             else:
-                log("⛔ Không tìm thấy nút Next (ViewGroup clickable).")
+                log("⛔ Không tìm thấy nút Next (ViewGroup dưới ô nhập email).")
                 return False
 
         except Exception as e:
             log(f"⚠️ Lỗi khi điền email và nhấn Next: {repr(e)}")
             return False
+
+        time.sleep(6)
+
+        # --- Nhấn nút "I didn’t get the code" (Instagram Lite) ---
+        try:
+            els = d.find_elements(
+                AppiumBy.ANDROID_UIAUTOMATOR,
+                'new UiSelector().className("android.view.View").clickable(true).focusable(true)'
+            )
+            if els:
+                els[-1].click()
+                log("🔁 [Lite] Đã nhấn nút 'I didn’t get the code'")
+            else:
+                log("ℹ️ [Lite] Không thấy nút 'I didn’t get the code'")
+        except Exception as e:
+            log(f"⚠️ [Lite] Lỗi khi nhấn 'I didn’t get the code': {e}")
+        time.sleep(5)
+
+        # --- Nhấn nút "Resend confirmation code" (Instagram Lite) ---
+        try:
+            time.sleep(2)  # Chờ popup hiện ra
+            # Tìm ViewGroup cha của popup (thường có bounds nhỏ ở cuối màn hình)
+            popup_candidates = d.find_elements(AppiumBy.CLASS_NAME, "android.view.ViewGroup")
+            popup_parent = None
+            for vg in popup_candidates:
+                bounds = vg.get_attribute("bounds")
+                # Popup thường nằm ở cuối màn hình, chiều cao < 800px
+                nums = [int(n) for n in re.findall(r"\d+", bounds)]
+                # Chọn popup có tọa độ y > 1000 và chiều cao < 800
+                if nums[1] > 1000 and (nums[3] - nums[1]) < 800:
+                    popup_parent = vg
+                    break
+            if not popup_parent:
+                log("ℹ️ [Lite] Không tìm thấy ViewGroup popup Resend.")
+            else:
+                # Lấy các ViewGroup clickable con trong popup
+                children = popup_parent.find_elements(AppiumBy.CLASS_NAME, "android.view.ViewGroup")
+                clickable_children = [c for c in children if c.get_attribute("clickable") == "true"]
+                if clickable_children:
+                    clickable_children[0].click()
+                    log("🔁 [Lite] Đã nhấn nút 'Resend confirmation code' (ViewGroup đầu tiên trong popup)")
+                else:
+                    log("ℹ️ [Lite] Không tìm thấy nút Resend trong popup.")
+        except Exception as e:
+            log(f"⚠️ [Lite] Lỗi khi nhấn 'Resend confirmation code': {e}")
+        time.sleep(4)
 
     # ================================== DISPATCHER ============================================================
     def run_signup(self):
@@ -4268,7 +4344,7 @@ def run_mobile(thread_id=None):
 
                 # Lưu file (optional) – có fallback cho save_format
                 try:
-                    file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "file die ins.txt")
+                    file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Die.txt")
                     info_map = {"Username": username, "Pass": password, "Mail": email, "Cookie": cookie_str, "2FA": ""}
                     fields = save_format if ('save_format' in globals() and isinstance(save_format, (list,tuple)) and save_format) \
                             else ["Username","Pass","Mail","Cookie","2FA"]
@@ -4444,7 +4520,7 @@ def run_mobile(thread_id=None):
 
             # === LƯU THÔNG TIN ===
             try:
-                file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "file da reg.txt")
+                file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Live.txt")
 
                 info_map = {
                     "Username": username,
@@ -5140,7 +5216,7 @@ def run(thread_id=None):
 
                     # Lưu file (optional) – có fallback cho save_format
                     try:
-                        file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "file die ins.txt")
+                        file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Die.txt")
                         info_map = {"Username": username, "Pass": password, "Mail": email, "Cookie": cookie_str, "2FA": ""}
                         fields = save_format if ('save_format' in globals() and isinstance(save_format, (list,tuple)) and save_format) \
                                 else ["Username","Pass","Mail","Cookie","2FA"]
@@ -5317,7 +5393,7 @@ def run(thread_id=None):
 
             # === LƯU THÔNG TIN ===
             try:
-                file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "file da reg.txt")
+                file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Live.txt")
 
                 info_map = {
                     "Username": username,
@@ -5647,14 +5723,14 @@ def run(thread_id=None):
 
 # === Giao diện TKinter có nền ===
 def open_file_da_reg():
-    file_path = "file da reg.txt"
+    file_path = "Live.txt"
     if os.path.exists(file_path):
         try:
             os.startfile(file_path)  # Mở bằng chương trình mặc định trên Windows
         except Exception as e:
             log(f"❌ Không mở được file: {repr(e)}")
     else:
-        log("⚠️ File 'file da reg.txt' chưa tồn tại.")
+        log("⚠️ File 'Live.txt' chưa tồn tại.")
 
 def close_tool():
     try:
