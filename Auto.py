@@ -256,14 +256,14 @@ def clear_instagram_and_warp(udid: str):
     Clear dữ liệu Instagram + WARP + Super Proxy.
     """
     # ========== Instagram ==========
-    adb_shell(udid, "pm", "clear", "--user", "0", "--cache-only", "com.instagram.android")
-    log(f"🧹 [{udid}] pm clear --cache-only com.instagram.android: OK")
+    clear_app_data(udid, "com.instagram.android")
+    time.sleep(1.0)
     adb_shell(udid, "am", "force-stop", "com.instagram.android")
     time.sleep(1.0)
 
     # ========== Instagram Lite ==========
-    adb_shell(udid, "pm", "clear", "--user", "0", "--cache-only", "com.instagram.lite")
-    log(f"🧹 [{udid}] pm clear --cache-only com.instagram.lite: OK")
+    clear_app_data(udid, "com.instagram.lite")
+    time.sleep(1.0)
     adb_shell(udid, "am", "force-stop", "com.instagram.lite")
     time.sleep(1.0)
 
@@ -1699,22 +1699,50 @@ class AndroidWorker(threading.Thread):
         # 1) Login screen → Create new account
         try:
             d.find_element(AppiumBy.XPATH, '//*[@text="Create new account"]').click()
-        except Exception:
-            pass
+        except Exception as e:
+            log(f"⚠️ Không tìm thấy nút 'Create new account': {e}")
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
         time.sleep(2)
 
         # 2) What's your mobile number? → Sign up with email
         try:
             d.find_element(AppiumBy.XPATH, '//*[@text="Sign up with email"]').click()
             log("👉 Bấm 'Sign up with email'")
-        except Exception:
-            return False
+        except Exception as e:
+            log(f"⚠️ Lỗi bấm 'Sign up with email': {e}")
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
         time.sleep(1.5)
 
         # 3) Lấy email tạm
         try:
             email, drop_session_id, source = fetch_signup_email(self)
-        except NameError:
+        except Exception:
             try:
                 mode = self.var_mail_src.get().strip().lower()
             except Exception:
@@ -1726,9 +1754,21 @@ class AndroidWorker(threading.Thread):
                 email = get_tempasia_email()
                 drop_session_id = None
                 source = "tempasia"
-
         if not email:
-            return False
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
 
         # 4) Điền email
         try:
@@ -1742,7 +1782,20 @@ class AndroidWorker(threading.Thread):
             edits = d.find_elements(AppiumBy.CLASS_NAME, 'android.widget.EditText')
             email_input = edits[0] if edits else None
         if not email_input:
-            return False
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
 
         email_input.clear(); email_input.send_keys(email)
         log(f"✅ Email đăng ký: {email}")
@@ -1755,7 +1808,20 @@ class AndroidWorker(threading.Thread):
             ).click()
             log("➡️ Next sau khi nhập email.")
         except Exception:
-            return False
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
         time.sleep(4)
 
         # 6) OTP → hỗ trợ resend
@@ -1787,7 +1853,20 @@ class AndroidWorker(threading.Thread):
         except Exception as e:
             log(f"⚠️ Lỗi chờ OTP: {repr(e)}")
         if not code:
-            return False
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
 
         # 8) Điền OTP + Next
         try:
@@ -1802,15 +1881,25 @@ class AndroidWorker(threading.Thread):
                 ).click()
             except Exception:
                 pass
-        except Exception as e:
-            return False
+        except Exception:
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
         time.sleep(5)
 
         # 9) Password
-        def _gen_password(n=10):
-            return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(n))
-        password = _gen_password(10)
-
+        password = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10))
         try:
             pass_input = WebDriverWait(d, 12).until(
                 EC.presence_of_element_located((
@@ -1820,8 +1909,21 @@ class AndroidWorker(threading.Thread):
             )
             pass_input.clear(); pass_input.send_keys(password)
             log(f"✅ Password: {password}")
-        except Exception as e:
-            return False
+        except Exception:
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
 
         try:
             WebDriverWait(d, 8).until(
@@ -1829,10 +1931,23 @@ class AndroidWorker(threading.Thread):
             ).click()
             log("➡️ Next sau Password.")
         except Exception:
-            return False
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
         time.sleep(4)
 
-        # Nhấn Not now nếu có (bỏ qua nếu không)
+        # 10) Nhấn Not now nếu có
         try:
             not_now_btn = WebDriverWait(d, 5).until(
                 EC.element_to_be_clickable((
@@ -1843,10 +1958,10 @@ class AndroidWorker(threading.Thread):
             not_now_btn.click()
             log("✅ Đã ấn Not now")
         except Exception:
-            pass 
+            pass
         time.sleep(4)
 
-        # 10) Birthday / Age
+        # 11) Birthday / Age
         try:
             try:
                 WebDriverWait(d, 5).until(
@@ -1882,52 +1997,113 @@ class AndroidWorker(threading.Thread):
                 ).click()
             except Exception:
                 pass
-        except Exception as e:
-            return False
+        except Exception:
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
         time.sleep(3)
 
-        # 11) Full name
-        def _gen_fullname():
-            first = ["Nguyen","Tran","Le","Pham","Hoang","Vo","Phan","Dang","Bui","Do"]
-            last  = ["Anh","Bao","Khanh","Linh","Huy","Trang","Tuan","Nam","Quyen","Ha"]
-            return f"{random.choice(first)} {random.choice(last)}"
-        fullname = _gen_fullname()
+        # 12) Full name
+        ho_list = ["Nguyen", "Tran", "Le", "Pham", "Hoang", "Huynh", "Phan", "Vu", "Vo", "Dang", "Bui", "Do", "Ngo", "Ho", "Duong", "Dinh"]
+        dem_list = ["Van", "Thi", "Minh", "Huu", "Quang", "Thanh", "Thu", "Anh", "Trung", "Phuc", "Ngoc", "Thao", "Khanh", "Tuan", "Hai"]
+        ten_list = ["Hoang", "Ha", "Tu", "Trang", "Linh", "Duy", "Hung", "Tam", "Lan", "Phuong", "Quan", "My", "Long", "Nam", "Vy"]
+        fullname = f"{random.choice(ho_list)} {random.choice(dem_list)} {random.choice(ten_list)}"
 
         try:
             name_input = WebDriverWait(d, 10).until(
                 EC.presence_of_element_located((AppiumBy.XPATH, '//*[@class="android.widget.EditText"]'))
             )
-            name_input.clear(); name_input.send_keys(fullname)
+            name_input.clear()
+            name_input.send_keys(fullname)
             log(f"✅ Full name: {fullname}")
             WebDriverWait(d, 6).until(
                 EC.element_to_be_clickable((AppiumBy.XPATH, '//*[@text="Next" or @text="Tiếp"]'))
             ).click()
         except Exception as e:
-            return False
-        time.sleep(3)
-
-        # 12) Create a username → đọc & Next
-        try:
-            uname = None
+            log(f"⚠️ Lỗi khi nhập Full name: {e}")
             try:
-                el = d.find_element(AppiumBy.ID, "com.instagram.android:id/username")
-                uname = (el.get_attribute("text") or "").strip()
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
+        time.sleep(5)
+
+        # 13) Create a username → đọc & Next
+        try:
+            # Dùng fullname vừa tạo ở bước trước
+            name_raw = fullname if fullname else "Nguyen Van A"
+            name_clean = unidecode(name_raw).replace(" ", "").lower()
+            rand_num = random.randint(1000, 99999)
+            username_new = f"{name_clean}_{rand_num}"
+
+            # Tìm ô nhập username và điền lại
+            uname_input = None
+            try:
+                uname_input = d.find_element(AppiumBy.ID, "com.instagram.android:id/username")
             except Exception:
                 edits = d.find_elements(AppiumBy.CLASS_NAME, "android.widget.EditText")
                 if edits:
-                    uname = (edits[0].get_attribute("text") or "").strip()
-            if uname:
-                self.username = uname
-                log(f"👤 Username: {uname}")
+                    uname_input = edits[0]
+            if uname_input:
+                uname_input.clear()
+                uname_input.send_keys(username_new)
+                log(f"👤 Username mới: {username_new}")
+                self.username = username_new
+            else:
+                log("⚠️ Không tìm thấy ô nhập username.")
 
+            # Đọc lại username sau khi điền (Instagram có thể tự đổi nếu trùng)
+            uname_final = None
+            try:
+                uname_final = uname_input.get_attribute("text") if uname_input else None
+            except Exception:
+                uname_final = username_new
+            if uname_final:
+                self.username = uname_final
+                log(f"👤 Username sau khi Instagram xử lý: {uname_final}")
+            time.sleep(6)
             WebDriverWait(d, 8).until(
                 EC.element_to_be_clickable((AppiumBy.XPATH, '//*[@text="Next" or @text="Tiếp"]'))
             ).click()
         except Exception as e:
-            return False
+            log(f"⚠️ Lỗi ở bước username: {e}")
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
+            except Exception as e2:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
+            self.log("🔄 Restart phiên vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
         time.sleep(5)
 
-        # 13) Terms & Policies + spam Next cho tới khi xong
+        # 14) Terms & Policies + spam Next cho tới khi xong
         try:
             WebDriverWait(d, 10).until(
                 EC.element_to_be_clickable((AppiumBy.XPATH, '//*[@text="I agree" or @text="Tôi đồng ý"]'))
@@ -2335,45 +2511,66 @@ class AndroidWorker(threading.Thread):
         # --- Vào Profile ---
         subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
         log("👤 Đã vào Profile")
-        time.sleep(2)
+        time.sleep(4)
 
         # --- Về Home ---
         subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "100", "1850"])
         log("👤 Đã về lại Home")
-        time.sleep(2)
+        time.sleep(4)
 
         # --- Vào Profile ---
         subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
         log("👤 Đã vào Profile")
-        time.sleep(5)
+        time.sleep(10)
 
         if enable_uppost.get():
-            # UP POST 
+            # =================== UP POST ===================
             clicked = False
+            # - Cách 1: Theo content-desc phổ biến
+            for desc in ["New post", "Create", "+", "Tạo", "Thêm"]:
+                try:
+                    plus_btn = d.find_element(
+                        AppiumBy.ANDROID_UIAUTOMATOR,
+                        f'new UiSelector().description("{desc}")'
+                    )
+                    if plus_btn.is_displayed() and plus_btn.is_enabled():
+                        plus_btn.click()
+                        log(f"✅ Đã nhấn nút + (content-desc='{desc}')")
+                        clicked = True
+                        break
+                except Exception:
+                    continue
 
-            # 1. Thử theo resource-id (nút + ở thanh dưới)
-            try:
-                el = d.find_element(AppiumBy.ID, "com.instagram.android:id/creation_tab")
-                el.click()
-                log("✅ Đã nhấn nút + (resource-id=creation_tab, thanh dưới)")
-                clicked = True
-            except Exception:
-                log("❌ Không tìm thấy nút + bằng resource-id")
+            # - Cách 2: Theo resource-id
+            if not clicked:
+                try:
+                    el = d.find_element(AppiumBy.ID, "com.instagram.android:id/creation_tab")
+                    if el.is_displayed() and el.is_enabled():
+                        el.click()
+                        log("✅ Đã nhấn nút + (resource-id=creation_tab, thanh dưới)")
+                        clicked = True
+                    else:
+                        log("❌ Nút + (creation_tab) không hiển thị hoặc không click được")
+                except Exception:
+                    log("❌ Không tìm thấy nút + bằng resource-id")
 
-            # 2. Thử theo nút + ở góc trái
+            # - Cách 3: Theo nút + ở góc trái
             if not clicked:
                 try:
                     el = d.find_element(
                         AppiumBy.XPATH,
                         '//android.widget.LinearLayout[@resource-id="com.instagram.android:id/left_action_bar_buttons"]/android.widget.ImageView'
                     )
-                    el.click()
-                    log("✅ Đã nhấn nút + ở góc trái")
-                    clicked = True
+                    if el.is_displayed() and el.is_enabled():
+                        el.click()
+                        log("✅ Đã nhấn nút + ở góc trái")
+                        clicked = True
+                    else:
+                        log("❌ Nút + ở góc trái không hiển thị hoặc không click được")
                 except Exception:
                     log("❌ Không tìm thấy nút + ở góc trái")
 
-            # 3. Thử theo nút + ở góc phải
+            # - Cách 4: Theo nút + ở góc phải
             if not clicked:
                 try:
                     els_right = d.find_elements(
@@ -2381,13 +2578,76 @@ class AndroidWorker(threading.Thread):
                         '//android.widget.LinearLayout[@resource-id="com.instagram.android:id/right_action_bar_buttons"]/android.widget.ImageView'
                     )
                     if len(els_right) >= 2:
-                        els_right[1].click()  # lấy nút thứ 2 (nút +)
-                        log("✅ Đã nhấn nút + ở góc phải")
-                        clicked = True
+                        el = els_right[1]
+                        if el.is_displayed() and el.is_enabled():
+                            el.click()
+                            log("✅ Đã nhấn nút + ở góc phải")
+                            clicked = True
+                        else:
+                            log("❌ Nút + ở góc phải không hiển thị hoặc không click được")
                     else:
                         log("⚠️ Không tìm thấy đủ nút trong right_action_bar_buttons")
                 except Exception as e:
                     log(f"⚠️ Lỗi khi tìm nút + ở góc phải: {e}")
+
+            if not clicked:
+                log("❌ Không thể nhấn được nút + ở bất kỳ vị trí nào")
+
+            # - Cách 5: Dump + Phân tích XML + Nhấn nút + (fallback thông minh)
+            if not clicked:
+                try:
+                    log("[INFO] Không tìm thấy nút + bằng 3 cách trên. Đang thử Dump + Phân tích UI...")
+
+                    # 📤 1️⃣ Dump UI từ thiết bị
+                    XML_PATH_PHONE = "/sdcard/window_dump.xml"
+                    XML_PATH_PC = r"C:\Users\MINH\Downloads\AutoTool\ui.xml"
+                    subprocess.run(["adb", "-s", udid, "shell", "uiautomator", "dump", XML_PATH_PHONE], stdout=subprocess.DEVNULL)
+                    subprocess.run(["adb", "-s", udid, "pull", XML_PATH_PHONE, XML_PATH_PC], stdout=subprocess.DEVNULL)
+
+                    x_center, y_center = None, None
+
+                    # 🔍 2️⃣ Phân tích file XML để tìm vị trí nút +
+                    if os.path.exists(XML_PATH_PC):
+                        with open(XML_PATH_PC, "r", encoding="utf-8") as f:
+                            xml_content = f.read()
+
+                        # Tìm node có content-desc chứa "Create" và lấy bounds
+                        match = re.search(
+                            r'content-desc="([^"]*Create[^"]*)"[\s\S]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+                            xml_content
+                        )
+                        if match:
+                            desc, x1, y1, x2, y2 = match.groups()
+                            x_center = (int(x1) + int(x2)) // 2
+                            y_center = (int(y1) + int(y2)) // 2
+                            log(f"[✅] Đã phát hiện nút '+' trong XML: desc='{desc}', tọa độ=({x_center},{y_center})")
+
+                            # 🖱️ 3️⃣ Thử click bằng content-desc nếu có
+                            try:
+                                element = d.find_element(AppiumBy.ACCESSIBILITY_ID, desc)
+                                element.click()
+                                log("[✅] Đã click nút '+' bằng accessibility id!")
+                                clicked = True
+                            except Exception:
+                                log("[⚠️] Không tìm thấy phần tử bằng desc, fallback về tọa độ...")
+
+                        # 🖱️ 4️⃣ Fallback: click theo tọa độ nếu có
+                        if not clicked and x_center and y_center:
+                            try:
+                                d.execute_script("mobile: clickGesture", {"x": x_center, "y": y_center})
+                                log(f"[✅] Đã click nút '+' bằng tọa độ fallback tại ({x_center}, {y_center})")
+                                clicked = True
+                            except Exception as e:
+                                log(f"❌ Không thể click bằng tọa độ fallback: {e}")
+                    else:
+                        log("❌ Không tìm thấy file XML sau khi dump!")
+
+                    # 🧹 5️⃣ Xóa file XML sau khi dùng xong
+                    if os.path.exists(XML_PATH_PC):
+                        os.remove(XML_PATH_PC)
+                        log("[🧹] Đã xóa file ui.xml sau khi hoàn tất.")
+                except Exception as e:
+                    log(f"⚠️ Lỗi khi thử cách Dump + Phân tích XML: {e}")
 
             time.sleep(7)
 
@@ -2405,42 +2665,6 @@ class AndroidWorker(threading.Thread):
                     log("⚠️ Không tìm thấy mục Post, bỏ qua")
             else:
                 log("❌ Không nhấn được nút + nào")
-            # --- Nếu vào nhầm Share Profile ---
-            if not clicked:
-                try:
-                    log("🔄 Vào nhầm Share Profile...")
-
-                    # Kiểm tra có màn giới thiệu không (ví dụ tìm nút Emoji hoặc text "Share Profile")
-                    has_intro = False
-                    try:
-                        WebDriverWait(d, 3).until(
-                            EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                                'new UiSelector().textContains("Share profile")'))
-                        )
-                        has_intro = True
-                        log("📌 Phát hiện màn giới thiệu Share profile")
-                    except:
-                        log("ℹ️ Không thấy màn giới thiệu, bỏ qua bước tap 4 lần")
-
-                    if has_intro:
-                        size = d.get_window_size()
-                        x = size["width"] // 2
-                        y = size["height"] // 2
-
-                        # Tap 4 lần vào màn hình (ở giữa)
-                        for i in range(4):
-                            d.tap([(x, y)])
-                            time.sleep(0.8)
-
-                    # Ấn nút X để thoát Share profile
-                    el_x = WebDriverWait(d, 5).until(
-                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                            'new UiSelector().descriptionContains("Close")'))
-                    )
-                    el_x.click()
-                    log("✅ Đã ấn nút X thoát Share Profile ")
-                except Exception as e:
-                    log(f"⚠️ Lỗi khi xử lý Share profile hoặc Edit profile: {e}")
                     
             # 5. Ấn Next 
             for _ in range(2):
@@ -2537,18 +2761,6 @@ class AndroidWorker(threading.Thread):
                 except Exception:
                     log("❌ Không tìm thấy nút kính lúp bằng descriptionContains 'Search'")
 
-            # 4. Thử bằng UiAutomator textContains tiếng Việt
-            if not clicked:
-                try:
-                    el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Tìm kiếm")')
-                    el.click()
-                    log("✅ Đã nhấn nút kính lúp (descriptionContains 'Tìm kiếm')")
-                    clicked = True
-                except Exception:
-                    log("❌ Không tìm thấy nút kính lúp bằng descriptionContains 'Tìm kiếm'")
-
-            if not clicked:
-                log("⛔ Không nhấn được nút kính lúp bằng mọi cách!")
             time.sleep(4)
 
             # 1. Tìm ô nhập Search
@@ -2560,7 +2772,7 @@ class AndroidWorker(threading.Thread):
                 try:
                     input_box = d.find_element(how, what)
                     input_box.click()
-                    time.sleep(2)
+                    time.sleep(4)
                     break
                 except Exception:
                     continue
@@ -2575,11 +2787,9 @@ class AndroidWorker(threading.Thread):
                     follow_count = 10
 
                 FOLLOW_USERNAMES = [
-                    "cristiano","leomessi","neymarjr","k.mbappe","vinijr","shx_pe06","nguyen57506",
-                    "datgia172","levandung9090","buiduc7432","letrong8649","hoangquang2408","vuvted","vuhuu7035",
-                    "lehuu9473","phanquang9903","phamduc2740","lengocquynh227","space.hubx","paraneko_2nd",
-                    "davide_feltrin","valentin_otz","faker","isn_calisthenics","t1lol","asamimichaan","ti_naka_cpz",
-                    "fran_lomeli","t1_gumayusi","keria_minseok"
+                    "n.nhu1207","v.anh.26","shxuy0bel421162","k.mbappe","valentin_otz","shx_pe06","nguyen57506",
+                    "mhai_187","ductoan1103","therock","eveil_tangyuan412","lunaistabby","fandango","uncle_bbao",
+                    "monkeycatluna",
                 ]
                 follow_list = random.sample(FOLLOW_USERNAMES, min(follow_count, len(FOLLOW_USERNAMES)))
                 followed = 0
@@ -2617,7 +2827,7 @@ class AndroidWorker(threading.Thread):
                         except Exception as e:
                             log(f"❌ Không nhập được {username}: {e}")
                             continue
-                    time.sleep(3)
+                    time.sleep(5)
 
                     # Tìm đúng username trong kết quả
                     found = False
@@ -2701,71 +2911,59 @@ class AndroidWorker(threading.Thread):
                     # Nếu đã đủ số lượng thì dừng
                     if followed >= follow_count:
                         break
-            
+        # --- Back sau khi follow đủ ---
+        back_clicked = False
+        try:
+            for desc in ["Back", "Điều hướng lên"]:
+                try:
+                    back_btn = d.find_element(AppiumBy.ACCESSIBILITY_ID, desc)
+                    back_btn.click()
+                    log(f"🔙 Đã nhấn nút mũi tên lùi ({desc})")
+                    back_clicked = True
+                    time.sleep(2)
+                    break
+                except Exception:
+                    continue
+            if not back_clicked:
+                btns = d.find_elements(AppiumBy.CLASS_NAME, "android.widget.ImageButton")
+                if btns:
+                    btns[0].click()
+                    log("🔙 Đã nhấn nút mũi tên lùi")
+                    back_clicked = True
+                    time.sleep(2)
+            if not back_clicked:
+                d.back()
+                log("🔙 Đã Ấn Back")
+                time.sleep(2)
+        except Exception:
+            log("⚠️ Không tìm thấy nút mũi tên lùi sau khi Follow")
         if enable_editprofile.get():
             # --- Vào Profile ---
             subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
             log("👤 Đã vào Profile")
-            time.sleep(8)
+            time.sleep(10)
             # Nhấn Edit profile
             try:
-                el = WebDriverWait(d, 8).until(
-                    EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                        'new UiSelector().textContains("Edit profile")'))
-                )
-                el.click()
-                log("✅ Đã nhấn Edit profile")
-                time.sleep(5)
-            except Exception as e:
-                log(f"❌ Không thể nhấn Edit profile: {e}")
-
-            # --- Nếu chưa click được Edit profile ---
-            if not clicked:
+                log("Đang tìm nút 'Edit profile'...")
+                edit_profile_btn = None
                 try:
-                    log("🔄 Vào nhầm Share profile...")
-
-                    # Kiểm tra có màn giới thiệu không (ví dụ tìm nút Emoji hoặc text "Share profile")
-                    has_intro = False
-                    try:
-                        WebDriverWait(d, 3).until(
-                            EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                                'new UiSelector().textContains("Share profile")'))
-                        )
-                        has_intro = True
-                        log("📌 Phát hiện màn giới thiệu Share profile")
-                    except:
-                        log("ℹ️ Không thấy màn giới thiệu, bỏ qua bước tap 4 lần")
-
-                    if has_intro:
-                        size = d.get_window_size()
-                        x = size["width"] // 2
-                        y = size["height"] // 2
-
-                        # Tap 4 lần vào màn hình (ở giữa)
-                        for i in range(4):
-                            d.tap([(x, y)])
-                            time.sleep(0.8)
-
-                    # Ấn nút X để thoát Share profile
-                    el_x = WebDriverWait(d, 5).until(
-                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                            'new UiSelector().descriptionContains("Close")'))
+                    edit_profile_btn = WebDriverWait(d, 8).until(
+                        EC.presence_of_element_located((
+                            AppiumBy.ANDROID_UIAUTOMATOR,
+                            'new UiSelector().text("Edit profile")'
+                        ))
                     )
-                    el_x.click()
-                    log("✅ Đã ấn nút X thoát Share profile")
-
-                    # --- Sau đó thử nhấn lại Edit profile ---
-                    log("🔄 Đang thử lại Edit profile...")
-                    el_edit = WebDriverWait(d, 8).until(
-                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                            'new UiSelector().textContains("Edit profile")'))
-                    )
-                    el_edit.click()
-                    log("✅ Đã nhấn lại Edit profile thành công")
+                except Exception:
+                    log("[ERROR] Không tìm thấy nút 'Edit profile'.")
+                    return
+                if edit_profile_btn:
+                    edit_profile_btn.click()
+                    log("Đã nhấn nút 'Edit profile'.")
                     time.sleep(5)
-
-                except Exception as e:
-                    log(f"⚠️ Lỗi khi xử lý Share profile hoặc Edit profile: {e}")
+                else:
+                    log("Lỗi Không tìm thấy nút 'Edit profile'.")
+            except Exception as e:
+                log(f"Lỗi khi nhấn nút 'Edit profile': {e}")
 
             # Nếu không phải Share profile, thì check popup avatar
             try:
@@ -2800,63 +2998,26 @@ class AndroidWorker(threading.Thread):
 
             # Nhấn Edit profile
             try:
-                el = WebDriverWait(d, 8).until(
-                    EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                        'new UiSelector().textContains("Edit profile")'))
-                )
-                el.click()
-                log("✅ Đã nhấn Edit profile sau khi thoát Share profile")
-                time.sleep(5)
-            except Exception as e:
-                log(f"❌ Không thể nhấn Edit profile: {e}")
-            
-            # --- Nếu chưa click được Edit profile ---
-            if not clicked:
+                log("Đang tìm nút 'Edit profile'...")
+                edit_profile_btn = None
                 try:
-                    log("🔄 Vào nhầm Share profile...")
-
-                    # Kiểm tra có màn giới thiệu không (ví dụ tìm nút Emoji hoặc text "Share profile")
-                    has_intro = False
-                    try:
-                        WebDriverWait(d, 3).until(
-                            EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                                'new UiSelector().textContains("Share profile")'))
-                        )
-                        has_intro = True
-                        log("📌 Phát hiện màn giới thiệu Share profile")
-                    except:
-                        log("ℹ️ Không thấy màn giới thiệu, bỏ qua bước tap 4 lần")
-
-                    if has_intro:
-                        size = d.get_window_size()
-                        x = size["width"] // 2
-                        y = size["height"] // 2
-
-                        # Tap 4 lần vào màn hình (ở giữa)
-                        for i in range(4):
-                            d.tap([(x, y)])
-                            time.sleep(0.8)
-
-                    # Ấn nút X để thoát Share profile
-                    el_x = WebDriverWait(d, 5).until(
-                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                            'new UiSelector().descriptionContains("Close")'))
+                    edit_profile_btn = WebDriverWait(d, 8).until(
+                        EC.presence_of_element_located((
+                            AppiumBy.ANDROID_UIAUTOMATOR,
+                            'new UiSelector().text("Edit profile")'
+                        ))
                     )
-                    el_x.click()
-                    log("✅ Đã ấn nút X thoát Share profile")
-
-                    # --- Sau đó thử nhấn lại Edit profile ---
-                    log("🔄 Đang thử lại Edit profile...")
-                    el_edit = WebDriverWait(d, 8).until(
-                        EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
-                            'new UiSelector().textContains("Edit profile")'))
-                    )
-                    el_edit.click()
-                    log("✅ Đã nhấn lại Edit profile thành công")
+                except Exception:
+                    log("Lỗi Không tìm thấy nút 'Edit profile'.")
+                    return
+                if edit_profile_btn:
+                    edit_profile_btn.click()
+                    log("Đã nhấn nút 'Edit profile'.")
                     time.sleep(5)
-
-                except Exception as e:
-                    log(f"⚠️ Lỗi khi xử lý Share profile hoặc Edit profile: {e}")
+                else:
+                    log("Lỗi Không tìm thấy nút 'Edit profile'.")
+            except Exception as e:
+                log(f"Lỗi khi nhấn nút 'Edit profile': {e}")
 
             # Điền BIO 
             # 1. Ấn vào label Bio
@@ -3054,137 +3215,6 @@ class AndroidWorker(threading.Thread):
 
             log(f"✅ [{udid}] Đã chuyển sang Professional: Category='{category}', Type={target_type}.")
 
-        # --- Tắt app Instagram ---
-        subprocess.call(["adb", "-s", self.udid, "shell", "am", "force-stop", "com.instagram.android"])
-        log("🛑 Đã tắt app Instagram")
-        time.sleep(3)
-
-        # --- Khởi động lại Instagram ---
-        subprocess.call([
-            "adb", "-s", self.udid, "shell", "monkey", "-p", "com.instagram.android", "-c", "android.intent.category.LAUNCHER", "1"
-        ])
-        log("🔄 Đã mở lại app Instagram")
-        time.sleep(15)  # chờ app load
-
-        # --- Vào Profile ---
-        subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
-        log("👤 Đã vào Profile")
-        time.sleep(5)
-
-        # --- Về Home ---
-        subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "100", "1850"])
-        log("👤 Đã về lại Home")
-        time.sleep(5)
-
-        # --- Vào Profile ---
-        subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
-        log("👤 Đã vào Profile")
-        time.sleep(5)
-
-        # ================================ ĐĂNG XUẤT ======================================
-        # 2) Tap menu ba gạch (tọa độ góc trên phải)
-        try:
-            size = d.get_window_size()
-            x = int(size["width"] * 0.95)
-            y = int(size["height"] * 0.08)
-            d.tap([(x, y)])
-            log(f"✅ Tap menu 3 gạch bằng tọa độ ({x},{y})")
-        except Exception as e:
-            log(f"⚠️ Không tap được menu 3 gạch: {e}")
-            return
-        time.sleep(6)
-
-        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
-        d.swipe(500, 1500, 500, 500, 500) 
-        time.sleep(1)
-        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
-        d.swipe(500, 1500, 500, 500, 500)  
-        time.sleep(1)
-        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
-        d.swipe(500, 1500, 500, 500, 500)
-        time.sleep(1)
-        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
-        d.swipe(500, 1500, 500, 500, 500)
-        time.sleep(1)
-        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
-        d.swipe(500, 1500, 500, 500, 500)
-        time.sleep(1)
-        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
-        d.swipe(500, 1500, 500, 500, 500)
-        time.sleep(1)
-        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
-        d.swipe(500, 1500, 500, 500, 500)
-        time.sleep(1)
-        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
-        d.swipe(500, 1500, 500, 500, 500)
-        time.sleep(1)
-        # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
-        d.swipe(500, 1500, 500, 500, 500)
-        time.sleep(5)
-
-        # Chỉ tìm và nhấn nút "Log out"
-        try:
-            logout_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                'new UiSelector().text("Log out")')
-            logout_btn.click()
-            log("✅ Đã nhấn nút Log out")
-            time.sleep(2)
-            # Nếu hiện popup lưu thông tin, nhấn "Not now", không có thì bỏ qua
-            try:
-                not_now_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                    'new UiSelector().text("Not now")')
-                not_now_btn.click()
-                log("✅ Đã nhấn nút Not now ở popup lưu thông tin")
-                time.sleep(3)
-            except Exception:
-                pass
-            # Nếu hiện popup xác nhận "Log out of your account?", nhấn tiếp "Log out"
-            try:
-                confirm_logout_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                    'new UiSelector().text("Log out")')
-                confirm_logout_btn.click()
-                log("✅ Đã xác nhận Log out ở popup xác nhận")
-                time.sleep(13)
-            except Exception:
-                pass
-        except Exception as e:
-            log(f"⚠️ Không tìm thấy hoặc không nhấn được nút Log out: {e}")
-
-        # ================================ REMOVE PROFILE ======================================
-        try:
-            # Tap đúng tọa độ 3 chấm (đã chỉnh lại cho chuẩn)
-            d.tap([(1030, 130)])
-            log("✅ Đã nhấn vào 3 chấm trên màn hình profile tại (1030, 130)")
-            time.sleep(4)
-
-            # Nhấn nút "Remove profiles from this device"
-            remove_profiles_btn = d.find_element(
-                AppiumBy.ANDROID_UIAUTOMATOR,
-                'new UiSelector().textContains("Remove profiles")'
-            )
-            remove_profiles_btn.click()
-            log("✅ Đã nhấn Remove profiles from this device")
-            time.sleep(8)
-
-            # Nhấn nút "Remove" bên cạnh tài khoản
-            remove_btn = d.find_element(
-                AppiumBy.ANDROID_UIAUTOMATOR,
-                'new UiSelector().text("Remove")'
-            )
-            remove_btn.click()
-            log("✅ Đã nhấn Remove bên cạnh tài khoản")
-            time.sleep(3)
-
-            # Xác nhận Remove ở popup
-            confirm_remove_btn = d.find_element(
-                AppiumBy.ANDROID_UIAUTOMATOR,
-                'new UiSelector().text("Remove")'
-            )
-            confirm_remove_btn.click()
-            log("✅ Đã xác nhận Remove ở popup")
-        except Exception as e:
-            log(f"⚠️ Không thực hiện được thao tác Remove profile: {e}")
-    
         # Bật chế độ máy bay và tự chạy lại phiên mới
         try:
             adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
@@ -3207,7 +3237,7 @@ class AndroidWorker(threading.Thread):
     def signup_instagram_lite(self):
         d, log = self.driver, self.log
         time.sleep(2.5)  # chờ UI ổn định hơn
-
+        
         # --- Nhấn "Create new account" ---
         try:
             groups = d.find_elements(AppiumBy.CLASS_NAME, "android.view.ViewGroup")
@@ -3317,52 +3347,189 @@ class AndroidWorker(threading.Thread):
             log(f"⚠️ Lỗi khi điền email và nhấn Next: {repr(e)}")
             return False
 
-        time.sleep(6)
+        time.sleep(13)
 
-        # --- Nhấn nút "I didn’t get the code" (Instagram Lite) ---
+        # ------ Lấy Code Mail Và Điền =============
+        code = None
+        # Chờ mã xác minh từ email tạm (DropMail hoặc TempAsia)
         try:
-            els = d.find_elements(
-                AppiumBy.ANDROID_UIAUTOMATOR,
-                'new UiSelector().className("android.view.View").clickable(true).focusable(true)'
-            )
-            if els:
-                els[-1].click()
-                log("🔁 [Lite] Đã nhấn nút 'I didn’t get the code'")
+            if source == "dropmail":
+                code = wait_for_dropmail_code(self, drop_session_id, max_checks=30, interval=3)
             else:
-                log("ℹ️ [Lite] Không thấy nút 'I didn’t get the code'")
+                code = wait_for_tempmail_code(email, max_checks=30, interval=2)
         except Exception as e:
-            log(f"⚠️ [Lite] Lỗi khi nhấn 'I didn’t get the code': {e}")
-        time.sleep(5)
+            log(f"⚠️ Lỗi khi lấy mã xác minh email: {repr(e)}")
+            code = None
 
-        # --- Nhấn nút "Resend confirmation code" (Instagram Lite) ---
+        if not code:
+            log("⛔ Không lấy được mã xác minh từ email.")
+            return False
+
+        log(f"✅ Đã lấy được mã xác minh: {code}")
+
+        # Tìm ô nhập code và điền vào
         try:
-            time.sleep(2)  # Chờ popup hiện ra
-            # Tìm ViewGroup cha của popup (thường có bounds nhỏ ở cuối màn hình)
-            popup_candidates = d.find_elements(AppiumBy.CLASS_NAME, "android.view.ViewGroup")
-            popup_parent = None
-            for vg in popup_candidates:
-                bounds = vg.get_attribute("bounds")
-                # Popup thường nằm ở cuối màn hình, chiều cao < 800px
+            udid = self.udid if hasattr(self, 'udid') else None
+            if udid:
+                subprocess.call(["adb", "-s", udid, "shell", "input", "text", str(code)])
+                log("✅ Đã dán mã xác minh bằng ADB input text")
+                time.sleep(3)
+            else:
+                log("⚠️ Không xác định được udid để dán code.")
+        except Exception as e:
+            log(f"❌ Không dán được mã xác minh: {repr(e)}")
+            return False
+        # Nhấn Next sau khi điền code
+        # --- Nhấn Next ---
+        groups = d.find_elements(AppiumBy.CLASS_NAME, "android.view.ViewGroup")
+        clickable_groups = [g for g in groups if g.get_attribute("clickable") == "true"]
+
+        # Lấy center Y của input_box
+        bounds_input = input_box.get_attribute("bounds")
+        nums_input = [int(n) for n in re.findall(r"\d+", bounds_input)]
+        y_input = (nums_input[1] + nums_input[3]) // 2
+
+        # Chọn ViewGroup clickable có center Y > y_input và diff nhỏ nhất (ngay dưới)
+        next_btn = None
+        min_diff = None
+        for g in clickable_groups:
+            try:
+                bounds = g.get_attribute("bounds")
                 nums = [int(n) for n in re.findall(r"\d+", bounds)]
-                # Chọn popup có tọa độ y > 1000 và chiều cao < 800
-                if nums[1] > 1000 and (nums[3] - nums[1]) < 800:
-                    popup_parent = vg
-                    break
-            if not popup_parent:
-                log("ℹ️ [Lite] Không tìm thấy ViewGroup popup Resend.")
-            else:
-                # Lấy các ViewGroup clickable con trong popup
-                children = popup_parent.find_elements(AppiumBy.CLASS_NAME, "android.view.ViewGroup")
-                clickable_children = [c for c in children if c.get_attribute("clickable") == "true"]
-                if clickable_children:
-                    clickable_children[0].click()
-                    log("🔁 [Lite] Đã nhấn nút 'Resend confirmation code' (ViewGroup đầu tiên trong popup)")
-                else:
-                    log("ℹ️ [Lite] Không tìm thấy nút Resend trong popup.")
-        except Exception as e:
-            log(f"⚠️ [Lite] Lỗi khi nhấn 'Resend confirmation code': {e}")
-        time.sleep(4)
+                y_center = (nums[1] + nums[3]) // 2
+                if y_center > y_input:
+                    diff = y_center - y_input
+                    if min_diff is None or diff < min_diff:
+                        min_diff = diff
+                        next_btn = g
+            except Exception:
+                continue
 
+        if next_btn:
+            next_btn.click()
+            log("👉 Đã bấm 'Next' (ViewGroup ngay dưới ô nhập email)")
+            time.sleep(12)
+        else:
+            log("⛔ Không tìm thấy nút Next (ViewGroup dưới ô nhập email).")
+            return False
+
+        # ================= Nhập Full Name và Password =================
+        log("✏️ Bắt đầu điền họ tên và mật khẩu (ADB CMD)...")
+
+        try:
+            # 📌 Chờ màn hình "Name and Password" xuất hiện
+            time.sleep(5)
+
+            # ======= Sinh họ tên KHÔNG DẤU để ADB gõ được =======
+            ho_list = ["Nguyen", "Tran", "Le", "Pham", "Hoang", "Huynh", "Phan", "Vu", "Vo", "Dang", "Bui", "Do", "Ngo", "Ho", "Duong", "Dinh"]
+            dem_list = ["Van", "Thi", "Minh", "Huu", "Quang", "Thanh", "Thu", "Anh", "Trung", "Phuc", "Ngoc", "Thao", "Khanh", "Tuan", "Hai"]
+            ten_list = ["Hoang", "Ha", "Tu", "Trang", "Linh", "Duy", "Hung", "Tam", "Lan", "Phuong", "Quan", "My", "Long", "Nam", "Vy"]
+
+            full_name = f"{random.choice(ho_list)} {random.choice(dem_list)} {random.choice(ten_list)}"
+            safe_full_name = full_name.replace(" ", "%s")  # đổi khoảng trắng cho adb
+            password = random.choice(string.ascii_uppercase) + ''.join(
+                random.choices(string.ascii_lowercase + string.digits, k=9)
+            )
+
+            udid = self.udid if hasattr(self, 'udid') else None
+            if not udid:
+                log("⛔ Không xác định được UDID thiết bị.")
+                return False
+
+            # ✏️ Tap vào ô Họ tên 2 lần để đảm bảo focus
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "400"])
+            time.sleep(1)
+
+            # 📝 Nhập họ tên
+            subprocess.call(["adb", "-s", udid, "shell", "input", "text", safe_full_name])
+            log(f"✅ Đã điền họ tên: {full_name}")
+            time.sleep(1.5)
+
+            # 🔑 Tap vào ô Mật khẩu và nhập
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "500", "600"])
+            time.sleep(1)
+            subprocess.call(["adb", "-s", udid, "shell", "input", "text", password])
+            log(f"✅ Đã điền mật khẩu: {password}")
+            time.sleep(1.5)
+
+            # ✅ Ẩn bàn phím để tránh che nút Next
+            subprocess.call(["adb", "-s", udid, "shell", "input", "keyevent", "111"])
+            time.sleep(0.8)
+
+            # 👉 Tap chính giữa nút Next
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "900"])
+            log("👉 Đã bấm 'Next' sau khi điền họ tên & mật khẩu.")
+            time.sleep(8)
+
+        except Exception as e:
+            log(f"⚠️ Lỗi khi điền họ tên và mật khẩu bằng ADB: {repr(e)}")
+            return False
+        
+        # ============================== Nhập Tuổi =====================================
+        log("✏️ Bắt đầu bỏ qua màn list age")
+        try:
+            # 👉 Tap Next
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1700"])
+            log("👉 Đã bấm 'Next")
+            time.sleep(3)
+            
+            # 👉 Tap OK
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1100"])
+            log("👉 Đã bấm OK")
+            time.sleep(4)
+
+            # 👉 Tap Enter age
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1700"])
+            log("👉 Đã bấm 'Enter age'")
+            time.sleep(7)
+        except Exception as e:
+            log(f"⚠️ Lỗi khi bỏ qua màn hình chọn tuổi: {repr(e)}")
+            return False
+        
+        # =================== Nhập tuổi ngẫu nhiên ===================
+        log("✏️ Bắt đầu nhập tuổi ngẫu nhiên (18 - 50)...")
+
+        try:
+            age = random.randint(18, 50)  # random tuổi
+            log(f"✅ Tuổi được chọn: {age}")
+
+            # ✏️ Nhập tuổi
+            subprocess.call(["adb", "-s", udid, "shell", "input", "text", str(age)])
+            log("✅ Đã nhập tuổi thành công!")
+            time.sleep(1.5)
+
+            # 👉 Tap nút Next
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "800"])
+            log("👉 Đã bấm 'Next' sau khi nhập tuổi.")
+            time.sleep(15)
+
+        except Exception as e:
+            log(f"⚠️ Lỗi khi nhập tuổi: {repr(e)}")
+            return False
+        
+        # ====================== Ấn Next để hoàn tất ======================
+        log("✏️ Bắt đầu hoàn tất đăng ký...")
+        try:
+            # 👉 Tap Next
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1550"])
+            log("👉 Đã bấm 'Next'")
+            time.sleep(25)
+            log("🎉 Hoàn tất đăng ký Instagram Lite!")
+        except Exception as e:
+            log(f"⚠️ Lỗi khi bỏ ấn next để hoàn tất đăng ký: {repr(e)}")
+            return False
+    
+        # Bật chế độ máy bay và tự chạy lại phiên mới
+        try:
+            adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+            adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+            adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
+            adb_shell(self.udid, "svc", "wifi", "disable")
+            adb_shell(self.udid, "svc", "data", "disable")
+            log("🛫 Đã bật Chế độ máy bay (LIVE)")
+        except Exception as e:
+            log(f"⚠️ Lỗi khi bật Chế độ máy bay (LIVE): {e}")
+            
     # ================================== DISPATCHER ============================================================
     def run_signup(self):
         app_choice = phone_ig_app_var.get() if "phone_ig_app_var" in globals() else "instagram"
@@ -5269,20 +5436,42 @@ def run(thread_id=None):
                 if warp_enabled:
                     warp_change_ip()
                 time.sleep(8)
-                time.sleep(8)
                 # Nhấn nút Next nhiều lần nếu còn
-                for i in range(5):
+                # Ấn nút Next từng luồng cách nhau 10 giây nếu chạy nhiều luồng
+                if sync_barrier is not None and sync_barrier.parties > 1:
+                    global next_press_lock
                     try:
-                        next_btn = WebDriverWait(driver, 5).until(
-                            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and normalize-space(text())='Next']"))
-                        )
-                        driver.execute_script("arguments[0].click();", next_btn)
-                        time.sleep(5)
-                        log(f"🔁 Ấn nút Next lần {i+1}")
-                        time.sleep(2)
-                    except:
-                        log("✅ Không còn nút Next, tiếp tục quy trình.")
-                        break
+                        next_press_lock
+                    except NameError:
+                        next_press_lock = threading.Lock()
+                    for i in range(5):
+                        with next_press_lock:
+                            try:
+                                next_btn = WebDriverWait(driver, 5).until(
+                                    EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and normalize-space(text())='Next']"))
+                                )
+                                driver.execute_script("arguments[0].click();", next_btn)
+                                time.sleep(5)
+                                log(f"🔁 Ấn nút Next lần {i+1}")
+                                time.sleep(2)
+                            except:
+                                log("✅ Không còn nút Next, tiếp tục quy trình.")
+                                break
+                        # Chờ 10 giây giữa các luồng
+                        time.sleep(10)
+                else:
+                    for i in range(5):
+                        try:
+                            next_btn = WebDriverWait(driver, 5).until(
+                                EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and normalize-space(text())='Next']"))
+                            )
+                            driver.execute_script("arguments[0].click();", next_btn)
+                            time.sleep(5)
+                            log(f"🔁 Ấn nút Next lần {i+1}")
+                            time.sleep(2)
+                        except:
+                            log("✅ Không còn nút Next, tiếp tục quy trình.")
+                            break
 
                 time.sleep(20)
                 wait_all("Xác minh email", thread_id)
