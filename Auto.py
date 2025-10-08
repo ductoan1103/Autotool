@@ -79,6 +79,7 @@ from tkinter import scrolledtext
 import threading
 import time
 import math
+import configparser
 from selenium import webdriver as se_webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -687,8 +688,8 @@ BIO_LINES = [
     "Một chút chill", "Hạnh phúc đơn giản",
 ]
 
-def _scroll_into_view_by_text(d, text_sub: str, max_swipes: int = 6) -> bool:
-    # Ưu tiên UiScrollable, fallback vuốt tay
+def _scroll_into_view_by_text(d, text_sub: str, max_swipes: int = 6, swipe_delay: float = 0.7) -> bool:
+    # Ưu tiên UiScrollable, fallback vuốt tay chậm hơn
     try:
         d.find_element(
             AppiumBy.ANDROID_UIAUTOMATOR,
@@ -701,7 +702,7 @@ def _scroll_into_view_by_text(d, text_sub: str, max_swipes: int = 6) -> bool:
             for _ in range(max_swipes):
                 d.swipe(size["width"]//2, int(size["height"]*0.82),
                         size["width"]//2, int(size["height"]*0.25), 300)
-                time.sleep(0.25)
+                time.sleep(swipe_delay)  # tăng delay để vuốt chậm hơn
                 if d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{text_sub}")'):
                     return True
         except Exception:
@@ -2788,7 +2789,7 @@ class AndroidWorker(threading.Thread):
 
                 FOLLOW_USERNAMES = [
                     "n.nhu1207","v.anh.26","shxuy0bel421162","k.mbappe","valentin_otz","shx_pe06","nguyen57506",
-                    "mhai_187","ductoan1103","therock","eveil_tangyuan412","lunaistabby","fandango","uncle_bbao",
+                    "mhai_187","ductoan1103","therock","evil_tangyuan412","lunaistabby","fandango","uncle_bbao",
                     "monkeycatluna",
                 ]
                 follow_list = random.sample(FOLLOW_USERNAMES, min(follow_count, len(FOLLOW_USERNAMES)))
@@ -3165,7 +3166,7 @@ class AndroidWorker(threading.Thread):
 
             target = (category or "").strip()
             if target:
-                if not _scroll_into_view_by_text(d, target):
+                if not _scroll_into_view_by_text(d, target, swipe_delay=0.7, max_swipes=10):
                     log(f"⚠️ [{udid}] Không tìm thấy category '{target}'.")
                     return
                 # chọn đúng item
@@ -5189,278 +5190,262 @@ def run(thread_id=None):
         log(f"🔤 Username: {username}")
         log(f"🔐 Mật khẩu: {password}")
 
-        try:
-            # === BƯỚC 1: Bật WARP và mở Instagram ===
-            time.sleep(3)
-            pause_event.wait()
-            log("🌐 Mở Instagram...")
+        # === BƯỚC 1: Bật WARP và mở Instagram ===
+        time.sleep(3)
+        pause_event.wait()
+        log("🌐 Mở Instagram...")
 
-            proxy = proxy_entry.get().strip()
+        proxy = proxy_entry.get().strip()
 
-            if warp_enabled:
-                log("🌐 Đang bật WARP → bỏ qua proxy.")
+        if warp_enabled:
+            log("🌐 Đang bật WARP → bỏ qua proxy.")
+        else:
+            if proxy:
+                log(f"🌐 WARP tắt → dùng proxy: {proxy}")
+                # options will be created below
             else:
-                if proxy:
-                    log(f"🌐 WARP tắt → dùng proxy: {proxy}")
-                    # options will be created below
-                else:
-                    log("🌐 WARP tắt nhưng không có proxy → dùng IP thật.")
+                log("🌐 WARP tắt nhưng không có proxy → dùng IP thật.")
 
-            options = Options()
-            options.add_argument("--disable-blink-features=AutomationControlled")
-            options.add_argument("--start-maximized")
+        options = Options()
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--start-maximized")
 
-            # ✅ nếu có proxy thì thêm (giữ lại logic cũ)
-            if proxy and not warp_enabled:
-                options.add_argument(f"--proxy-server=http://{proxy}")
+        # ✅ nếu có proxy thì thêm (giữ lại logic cũ)
+        if proxy and not warp_enabled:
+            options.add_argument(f"--proxy-server=http://{proxy}")
 
-            # ✅ nếu có chrome_path thì dùng binary_location (giống V3-Mobile)
-            if chrome_path:
-                options.binary_location = chrome_path
+        # ✅ nếu có chrome_path thì dùng binary_location (giống V3-Mobile)
+        if chrome_path:
+            options.binary_location = chrome_path
 
-            driver_path = os.path.join(os.getcwd(), "chromedriver.exe")
-            service = Service(driver_path)
-            driver = se_webdriver.Chrome(service=service, options=options)
-            all_drivers.append(driver)
+        driver_path = os.path.join(os.getcwd(), "chromedriver.exe")
+        service = Service(driver_path)
+        driver = se_webdriver.Chrome(service=service, options=options)
+        all_drivers.append(driver)
 
-            # 🕒 Sắp xếp Chrome giống V3-Mobile
-            threading.Thread(target=arrange_after_open, args=(driver,), daemon=True).start()
+        # 🕒 Sắp xếp Chrome giống V3-Mobile
+        threading.Thread(target=arrange_after_open, args=(driver,), daemon=True).start()
 
-            driver.get("https://www.instagram.com/accounts/emailsignup/")
-            WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.NAME, "emailOrPhone"))
-            )
-            log(f"✅ [Luồng {thread_id}] Chrome đã mở xong và trang Instagram sẵn sàng.")
-            time.sleep(3)
-            WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.NAME, "emailOrPhone")))
-            log(f"✅ [Luồng {thread_id}] Chrome đã mở xong và trang Instagram sẵn sàng.")
-            # === ĐỒNG BỘ: chờ tất cả luồng sẵn sàng ===
-            if sync_barrier is not None:
-                try:
-                    log(f"⏳ [Luồng {thread_id}] Đang chờ các luồng khác (timeout {barrier_timeout}s)...")
-                    sync_barrier.wait(timeout=barrier_timeout)
-                    log(f"🚀 [Luồng {thread_id}] Tất cả luồng đã sẵn sàng. Bắt đầu đồng loạt.")
-                except threading.BrokenBarrierError:
-                    log(f"⚠️ [Luồng {thread_id}] Barrier timeout/broken, tiếp tục.")
-            else:
-                log(f"⚠️ [Luồng {thread_id}] sync_barrier chưa được tạo — tiếp tục luôn.")
-
-            time.sleep(2)
-            type_text_slowly(
-                driver.find_element(By.NAME, "emailOrPhone"),
-                email,
-                delay=get_delay("Mail_type", 0.18)
-            )
-            time.sleep(get_delay("Mail_sleep", 1))
-            type_text_slowly(
-                driver.find_element(By.NAME, "password"),
-                password,
-                delay=get_delay("Pass_type", 0.18)
-            )
-            time.sleep(get_delay("Pass_sleep", 3))
-            type_text_slowly(
-                driver.find_element(By.NAME, "fullName"),
-                full_name,
-                delay=get_delay("Họ Tên_type", 0.18)
-            )
-            time.sleep(get_delay("Họ Tên_sleep", 2))
-            type_text_slowly(
-                driver.find_element(By.NAME, "username"),
-                username,
-                delay=get_delay("Username_type", 0.18)
-            )
-            time.sleep(get_delay("Username_sleep", 3))
-            time.sleep(2)
-            driver.execute_script("""
-                document.querySelectorAll('button[type="button"]').forEach(el => {
-                    if (el.innerText.trim() === "Refresh suggestion") {
-                        el.click();
-                        console.log("✅ Đã click nút Refresh suggestion");
-                    }
-                });
-            """)
-            time.sleep(2)
-            driver.execute_script("""
-                document.querySelectorAll('button[type="button"]').forEach(el => {
-                    if (el.innerText.trim() === "Refresh suggestion") {
-                        el.click();
-                        console.log("✅ Đã click nút Refresh suggestion");
-                    }
-                });
-            """)
-            time.sleep(2)
+        driver.get("https://www.instagram.com/accounts/emailsignup/")
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.NAME, "emailOrPhone"))
+        )
+        log(f"✅ [Luồng {thread_id}] Chrome đã mở xong và trang Instagram sẵn sàng.")
+        time.sleep(3)
+        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.NAME, "emailOrPhone")))
+        log(f"✅ [Luồng {thread_id}] Chrome đã mở xong và trang Instagram sẵn sàng.")
+        # === ĐỒNG BỘ: chờ tất cả luồng sẵn sàng ===
+        if sync_barrier is not None:
             try:
-                new_username = driver.find_element(By.NAME, "username").get_attribute("value") or username
-                if new_username != username:
-                    log(f"🔁 Username sau refresh: {username}  ➜  {new_username}")
-                    username = new_username  # cập nhật để bước check live & lưu file dùng tên mới nhất
-                else:
-                    log("ℹ️ Username không đổi sau 2 lần refresh.")
-            except Exception as e:
-                log(f"⚠️ Không đọc được username sau refresh: {e}")
-            log("✅ Đã điền xong form đăng ký")
+                log(f"⏳ [Luồng {thread_id}] Đang chờ các luồng khác (timeout {barrier_timeout}s)...")
+                sync_barrier.wait(timeout=barrier_timeout)
+                log(f"🚀 [Luồng {thread_id}] Tất cả luồng đã sẵn sàng. Bắt đầu đồng loạt.")
+            except threading.BrokenBarrierError:
+                log(f"⚠️ [Luồng {thread_id}] Barrier timeout/broken, tiếp tục.")
+        else:
+            log(f"⚠️ [Luồng {thread_id}] sync_barrier chưa được tạo — tiếp tục luôn.")
 
-            wait_all("Điền form", thread_id)
-            pause_event.wait()
-            driver.find_element(By.XPATH, "//button[@type='submit']").click()
-            log("➡️ Đã ấn Tiếp theo")
-            time.sleep(get_delay("Next_sleep", 2))
-
-            # === BƯỚC 2: Tắt WARP để chọn ngày sinh ===
-            pause_event.wait()
-            log("📅 Đang chờ phần chọn ngày sinh...")
-            WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.XPATH, "//select[@title='Month:']"))
-            )
-            time.sleep(3)
-            year = str(random.randint(1999, 2003))
-            month = str(random.randint(1, 12))
-            day = str(random.randint(1, 28))
-
-            def select_dropdown_value(driver, dropdown_xpath, value):
-                dropdown = Select(driver.find_element(By.XPATH, dropdown_xpath))
-                dropdown.select_by_value(value)
-                time.sleep(2)
-
-            select_dropdown_value(driver, "//select[@title='Month:']", month)
-            select_dropdown_value(driver, "//select[@title='Day:']", str(day))
-            select_dropdown_value(driver, "//select[@title='Year:']", year)
-
-            log(f"📅 Đã chọn ngày: {day}, tháng: {month}, năm: {year}")
-
-            next_btn = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Next')]") )
-            )
-            driver.execute_script("arguments[0].click();", next_btn)
-            log("✅ Đã chọn ngày sinh và ấn Tiếp theo")
-            wait_all("Chọn ngày sinh", thread_id)
-
-            # === BƯỚC 3: Bật WARP để lấy mã xác minh email ===
-            pause_event.wait()
-            log("⏳ Đợi 10 giây để lấy mã xác minh từ email...")
-            time.sleep(6)
-            # --- Hàm đợi DropMail VỚI GIỚI HẠN ---
-            def wait_for_dropmail_code(session_id, max_checks=5, interval=5, overall_timeout=300):
-                url = "https://dropmail.me/api/graphql/my_token_123"
-                query = """
-                query($id: ID!) {
-                session(id: $id) {
-                    mails { fromAddr headerSubject text }
+        time.sleep(2)
+        type_text_slowly(
+            driver.find_element(By.NAME, "emailOrPhone"),
+            email,
+            delay=get_delay("Mail_type", 0.18)
+        )
+        time.sleep(get_delay("Mail_sleep", 1))
+        type_text_slowly(
+            driver.find_element(By.NAME, "password"),
+            password,
+            delay=get_delay("Pass_type", 0.18)
+        )
+        time.sleep(get_delay("Pass_sleep", 3))
+        type_text_slowly(
+            driver.find_element(By.NAME, "fullName"),
+            full_name,
+            delay=get_delay("Họ Tên_type", 0.18)
+        )
+        time.sleep(get_delay("Họ Tên_sleep", 2))
+        type_text_slowly(
+            driver.find_element(By.NAME, "username"),
+            username,
+            delay=get_delay("Username_type", 0.18)
+        )
+        time.sleep(get_delay("Username_sleep", 3))
+        time.sleep(2)
+        driver.execute_script("""
+            document.querySelectorAll('button[type="button"]').forEach(el => {
+                if (el.innerText.trim() === "Refresh suggestion") {
+                    el.click();
+                    console.log("✅ Đã click nút Refresh suggestion");
                 }
-                }"""
-                start_time = time.time()
-                checks = 0
-                while (time.time() - start_time) < overall_timeout and checks < max_checks:
-                    try:
-                        resp = requests.post(url, json={"query": query, "variables": {"id": session_id}}, timeout=10)
-                        data = resp.json()
-                        mails = data["data"]["session"]["mails"]
-                        if mails:
-                            for mail in mails:
-                                text = mail.get("text", "")
-                                subject = mail.get("headerSubject", "")
-                                match = re.search(r"\b\d{6}\b", text) or re.search(r"\b\d{6}\b", subject)
-                                if match:
-                                    code = match.group(0)
-                                    log(f"📩 Nhận được mã DropMail: {code}")
-                                    return code
-                        checks += 1
-                        log(f"⌛ Chưa có mail DropMail (lần {checks}/{max_checks}), chờ thêm...")
-                    except Exception as e:
-                        checks += 1
-                        log(f"❌ Lỗi khi kiểm tra DropMail (lần {checks}/{max_checks}): {repr(e)}")
-                    time.sleep(interval)
-                log("⛔ Quá 5 lần kiểm tra DropMail mà chưa có mã — bỏ phiên.")
-                return None
+            });
+        """)
+        time.sleep(2)
+        driver.execute_script("""
+            document.querySelectorAll('button[type="button"]').forEach(el => {
+                if (el.innerText.trim() === "Refresh suggestion") {
+                    el.click();
+                    console.log("✅ Đã click nút Refresh suggestion");
+                }
+            });
+        """)
+        time.sleep(2)
+        try:
+            new_username = driver.find_element(By.NAME, "username").get_attribute("value") or username
+            if new_username != username:
+                log(f"🔁 Username sau refresh: {username}  ➜  {new_username}")
+                username = new_username  # cập nhật để bước check live & lưu file dùng tên mới nhất
+            else:
+                log("ℹ️ Username không đổi sau 2 lần refresh.")
+        except Exception as e:
+            log(f"⚠️ Không đọc được username sau refresh: {e}")
+        log("✅ Đã điền xong form đăng ký")
+
+        wait_all("Điền form", thread_id)
+        pause_event.wait()
+        driver.find_element(By.XPATH, "//button[@type='submit']").click()
+        log("➡️ Đã ấn Tiếp theo")
+        time.sleep(get_delay("Next_sleep", 2))
+
+        # === BƯỚC 2: Tắt WARP để chọn ngày sinh ===
+        pause_event.wait()
+        log("📅 Đang chờ phần chọn ngày sinh...")
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.XPATH, "//select[@title='Month:']"))
+        )
+        time.sleep(3)
+        year = str(random.randint(1999, 2003))
+        month = str(random.randint(1, 12))
+        day = str(random.randint(1, 28))
+
+        def select_dropdown_value(driver, dropdown_xpath, value):
+            dropdown = Select(driver.find_element(By.XPATH, dropdown_xpath))
+            dropdown.select_by_value(value)
+            time.sleep(2)
+
+        select_dropdown_value(driver, "//select[@title='Month:']", month)
+        select_dropdown_value(driver, "//select[@title='Day:']", str(day))
+        select_dropdown_value(driver, "//select[@title='Year:']", year)
+
+        log(f"📅 Đã chọn ngày: {day}, tháng: {month}, năm: {year}")
+
+        next_btn = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Next')]") )
+        )
+        driver.execute_script("arguments[0].click();", next_btn)
+        log("✅ Đã chọn ngày sinh và ấn Tiếp theo")
+        wait_all("Chọn ngày sinh", thread_id)
+
+        # === BƯỚC 3: Bật WARP để lấy mã xác minh email ===
+        pause_event.wait()
+        log("⏳ Đợi 10 giây để lấy mã xác minh từ email...")
+        time.sleep(6)
+        # --- Hàm đợi DropMail VỚI GIỚI HẠN ---
+        def wait_for_dropmail_code(session_id, max_checks=5, interval=5, overall_timeout=300):
+            url = "https://dropmail.me/api/graphql/my_token_123"
+            query = """
+            query($id: ID!) {
+            session(id: $id) {
+                mails { fromAddr headerSubject text }
+            }
+            }"""
+            start_time = time.time()
+            checks = 0
+            while (time.time() - start_time) < overall_timeout and checks < max_checks:
+                try:
+                    resp = requests.post(url, json={"query": query, "variables": {"id": session_id}}, timeout=10)
+                    data = resp.json()
+                    mails = data["data"]["session"]["mails"]
+                    if mails:
+                        for mail in mails:
+                            text = mail.get("text", "")
+                            subject = mail.get("headerSubject", "")
+                            match = re.search(r"\b\d{6}\b", text) or re.search(r"\b\d{6}\b", subject)
+                            if match:
+                                code = match.group(0)
+                                log(f"📩 Nhận được mã DropMail: {code}")
+                                return code
+                    checks += 1
+                    log(f"⌛ Chưa có mail DropMail (lần {checks}/{max_checks}), chờ thêm...")
+                except Exception as e:
+                    checks += 1
+                    log(f"❌ Lỗi khi kiểm tra DropMail (lần {checks}/{max_checks}): {repr(e)}")
+                time.sleep(interval)
+            log("⛔ Quá 5 lần kiểm tra DropMail mà chưa có mã — bỏ phiên.")
+            return None
 
 
-            # --- Hàm đợi TempMail VỚI GIỚI HẠN ---
-            def wait_for_tempmail_code(email, max_checks=5, interval=5, overall_timeout=300):
-                headers = {"accept": "application/json"}
-                email_encoded = email.replace("@", "%40")
-                mail_url = f"https://free.priyo.email/api/messages/{email_encoded}/7jkmE5NM2VS6GqJ9pzlI"
-                start_time = time.time()
-                checks = 0
-                while (time.time() - start_time) < overall_timeout and checks < max_checks:
-                    try:
-                        resp = requests.get(mail_url, headers=headers, timeout=10)
-                        if resp.status_code == 200:
-                            messages = resp.json()
-                            if messages:
-                                subject = messages[0].get("subject", "")
-                                log(f"📬 Subject email: {subject}")
-                                match = re.search(r"\b\d{6}\b", subject)
-                                if match:
-                                    code = match.group(0)
-                                    log(f"🔢 Nhận được mã TempMail: {code}")
-                                    return code
-                        checks += 1
-                        log(f"⌛ Chưa có mail TempMail (lần {checks}/{max_checks}), chờ thêm...")
-                    except Exception as e:
-                        checks += 1
-                        log(f"❌ Lỗi khi kiểm tra TempMail (lần {checks}/{max_checks}): {repr(e)}")
-                    time.sleep(interval)
-                log("⛔ Quá 5 lần kiểm tra TempMail mà chưa có mã — bỏ phiên.")
-                return None
+        # --- Hàm đợi TempMail VỚI GIỚI HẠN ---
+        def wait_for_tempmail_code(email, max_checks=5, interval=5, overall_timeout=300):
+            headers = {"accept": "application/json"}
+            email_encoded = email.replace("@", "%40")
+            mail_url = f"https://free.priyo.email/api/messages/{email_encoded}/7jkmE5NM2VS6GqJ9pzlI"
+            start_time = time.time()
+            checks = 0
+            while (time.time() - start_time) < overall_timeout and checks < max_checks:
+                try:
+                    resp = requests.get(mail_url, headers=headers, timeout=10)
+                    if resp.status_code == 200:
+                        messages = resp.json()
+                        if messages:
+                            subject = messages[0].get("subject", "")
+                            log(f"📬 Subject email: {subject}")
+                            match = re.search(r"\b\d{6}\b", subject)
+                            if match:
+                                code = match.group(0)
+                                log(f"🔢 Nhận được mã TempMail: {code}")
+                                return code
+                    checks += 1
+                    log(f"⌛ Chưa có mail TempMail (lần {checks}/{max_checks}), chờ thêm...")
+                except Exception as e:
+                    checks += 1
+                    log(f"❌ Lỗi khi kiểm tra TempMail (lần {checks}/{max_checks}): {repr(e)}")
+                time.sleep(interval)
+            log("⛔ Quá 5 lần kiểm tra TempMail mà chưa có mã — bỏ phiên.")
+            return None
 
-            # --- Điền code mail ---
-            try:
-                if dropmail_var.get():
-                    code = wait_for_dropmail_code(session_id, max_checks=5, interval=5, overall_timeout=300)
-                elif tempmail_var.get():
-                    code = wait_for_tempmail_code(email, max_checks=5, interval=5, overall_timeout=300)
-                else:
-                    code = None
+        # --- Điền code mail ---
+        try:
+            if dropmail_var.get():
+                code = wait_for_dropmail_code(session_id, max_checks=5, interval=5, overall_timeout=300)
+            elif tempmail_var.get():
+                code = wait_for_tempmail_code(email, max_checks=5, interval=5, overall_timeout=300)
+            else:
+                code = None
 
-                if not code:
-                    log("⛔ Không lấy được mã xác minh sau 5 lần kiểm tra. Đóng phiên hiện tại và tạo phiên mới.")
-                    try:
-                        warp_off()
-                    except:
-                        pass
-                    try:
-                        release_position(driver)   # ✅ trả chỗ
-                        driver.quit()
-                    except:
-                        pass
-                    # (khuyên dùng continue để không nhân thêm thread)
-                    log("🔁 Restart phiên trong cùng luồng.")
-                    continue
+            if not code:
+                log("⛔ Không lấy được mã xác minh sau 5 lần kiểm tra. Đóng phiên hiện tại và tạo phiên mới.")
+                try:
+                    warp_off()
+                except:
+                    pass
+                try:
+                    release_position(driver)   # ✅ trả chỗ
+                    driver.quit()
+                except:
+                    pass
+                # (khuyên dùng continue để không nhân thêm thread)
+                log("🔁 Restart phiên trong cùng luồng.")
+                continue
 
-                # Nếu có code -> nhập và tiếp tục như cũ
-                code_input = WebDriverWait(driver, 15).until(
-                    EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Confirmation Code']"))
-                )
-                type_text_slowly(code_input, code, delay=0.3)
-                log(f"✅ Đã nhập mã xác minh: {code}")
-                if warp_enabled:
-                    warp_change_ip()
-                time.sleep(8)
-                # Nhấn nút Next nhiều lần nếu còn
-                # Ấn nút Next từng luồng cách nhau 10 giây nếu chạy nhiều luồng
-                if sync_barrier is not None and sync_barrier.parties > 1:
-                    global next_press_lock
-                    try:
-                        next_press_lock
-                    except NameError:
-                        next_press_lock = threading.Lock()
-                    for i in range(5):
-                        with next_press_lock:
-                            try:
-                                next_btn = WebDriverWait(driver, 5).until(
-                                    EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and normalize-space(text())='Next']"))
-                                )
-                                driver.execute_script("arguments[0].click();", next_btn)
-                                time.sleep(5)
-                                log(f"🔁 Ấn nút Next lần {i+1}")
-                                time.sleep(2)
-                            except:
-                                log("✅ Không còn nút Next, tiếp tục quy trình.")
-                                break
-                        # Chờ 10 giây giữa các luồng
-                        time.sleep(10)
-                else:
-                    for i in range(5):
+            # Nếu có code -> nhập và tiếp tục như cũ
+            code_input = WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Confirmation Code']"))
+            )
+            type_text_slowly(code_input, code, delay=0.3)
+            log(f"✅ Đã nhập mã xác minh: {code}")
+            if warp_enabled:
+                warp_change_ip()
+            time.sleep(8)
+            # Nhấn nút Next nhiều lần nếu còn
+            # Ấn nút Next từng luồng cách nhau 10 giây nếu chạy nhiều luồng
+            if sync_barrier is not None and sync_barrier.parties > 1:
+                global next_press_lock
+                try:
+                    next_press_lock
+                except NameError:
+                    next_press_lock = threading.Lock()
+                for i in range(5):
+                    with next_press_lock:
                         try:
                             next_btn = WebDriverWait(driver, 5).until(
                                 EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and normalize-space(text())='Next']"))
@@ -5472,107 +5457,113 @@ def run(thread_id=None):
                         except:
                             log("✅ Không còn nút Next, tiếp tục quy trình.")
                             break
-
-                time.sleep(20)
-                wait_all("Xác minh email", thread_id)
-
-            except Exception as e:
-                log(f"❌ Lỗi khi nhập mã xác minh: {repr(e)}")
-
-            # === CHECK LIVE/DIE ===
-            try:
-                global live_count, die_count
-                profile_url = f"https://www.instagram.com/{username}/"
-                log("🌐 Đang kiểm tra trạng thái Live/Die...")
-                driver.get(profile_url)
-                time.sleep(6)  # có thể thay bằng WebDriverWait nếu muốn
-
-                current_url = driver.current_url
-                page_source = driver.page_source
-
-                # Mặc định
-                status_text = "Unknown"
-
-                # Phân loại trạng thái
-                if "/accounts/login/" in current_url or "Sorry, this page isn't available" in page_source:
-                    status_text = "Die"
-                elif "checkpoint" in current_url.lower() or "Confirm you're human" in page_source:
-                    status_text = "Checkpoint"
-                elif (f"@{username}" in page_source) or (f"instagram.com/{username}" in current_url):
-                    status_text = "Live"
-                else:
-                    status_text = "Die"
-
-                # Cập nhật biến đếm + log
-                if status_text == "Live":
-                    live_count += 1
-                    live_var.set(str(live_count))
-                    update_rate()
-                    log("✅ Tài khoản Live")
-                else:
-                    die_count += 1
-                    die_var.set(str(die_count))
-                    update_rate()
-                    log(f"❌ {status_text} — tính là Die")
-
-                # === Lấy Cookie ===
-                try:
-                    cookies = driver.get_cookies()
-                    cookie_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies]) if cookies else ""
-                    log("🍪 Cookie hiện tại:")
-                    log(cookie_str if cookie_str else "(empty)")
-                    time.sleep(3)
-                except Exception as e:
-                    cookie_str = ""
-                    log(f"❌ Lỗi khi lấy cookie: {repr(e)}")
-
-                # Nếu KHÔNG phải Live thì insert ngay bây giờ
-                if status_text.lower() in ("die", "checkpoint", "unknown"):
-                    # nếu có app (Tk root) thì:
+                    # Chờ 10 giây giữa các luồng
+                    time.sleep(10)
+            else:
+                for i in range(5):
                     try:
-                        app.after(0, lambda: insert_to_tree(status_text, username, password, email, cookie_str, two_fa_code=""))
-                    except:
-                        insert_to_tree(status_text, username, password, email, cookie_str, two_fa_code="")
-
-                    # Lưu file (optional) – có fallback cho save_format
-                    try:
-                        file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Die.txt")
-                        info_map = {"Username": username, "Pass": password, "Mail": email, "Cookie": cookie_str, "2FA": ""}
-                        fields = save_format if ('save_format' in globals() and isinstance(save_format, (list,tuple)) and save_format) \
-                                else ["Username","Pass","Mail","Cookie","2FA"]
-                        line = "|".join([info_map.get(field, "") for field in fields])
-                        with open(file_path, "a", encoding="utf-8") as f:
-                            f.write(line + "\n")
-                        log(f"💾 (Die early) Đã lưu thông tin vào '{file_path}'")
-                    except Exception as e:
-                        log(f"❌ (Die early) Lỗi khi lưu file: {repr(e)}")
-
-                    # Quyết định restart
-                    try:
-                        warp_off()
+                        next_btn = WebDriverWait(driver, 5).until(
+                            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and normalize-space(text())='Next']"))
+                        )
+                        driver.execute_script("arguments[0].click();", next_btn)
+                        time.sleep(5)
+                        log(f"🔁 Ấn nút Next lần {i+1}")
                         time.sleep(2)
-                        release_position(driver)
-                        driver.quit()
-                        driver = None
                     except:
-                        pass
-                    log("🔁 Khởi chạy lại phiên...")
-                    continue
-                else:
-                    log("➡️ LIVE: Tiếp tục BƯỚC TIẾP THEO (Follow/…)")
+                        log("✅ Không còn nút Next, tiếp tục quy trình.")
+                        break
 
-            except Exception as e:
-                log(f"⚠️ Lỗi khi check live/die: {repr(e)}")
+            time.sleep(20)
+            wait_all("Xác minh email", thread_id)
+
         except Exception as e:
-            log(f"❌ Lỗi trình duyệt: {repr(e)}")
+            log(f"❌ Lỗi khi nhập mã xác minh: {repr(e)}")
+
+        # === CHECK LIVE/DIE ===
+        try:
+            global live_count, die_count
+            profile_url = f"https://www.instagram.com/{username}/"
+            log("🌐 Đang kiểm tra trạng thái Live/Die...")
+            driver.get(profile_url)
+            time.sleep(6)  # có thể thay bằng WebDriverWait nếu muốn
+
+            current_url = driver.current_url
+            page_source = driver.page_source
+
+            # Mặc định
+            status_text = "Unknown"
+
+            # Phân loại trạng thái
+            if "/accounts/login/" in current_url or "Sorry, this page isn't available" in page_source:
+                status_text = "Die"
+            elif "checkpoint" in current_url.lower() or "Confirm you're human" in page_source:
+                status_text = "Checkpoint"
+            elif (f"@{username}" in page_source) or (f"instagram.com/{username}" in current_url):
+                status_text = "Live"
+            else:
+                status_text = "Die"
+
+            # Cập nhật biến đếm + log
+            if status_text == "Live":
+                live_count += 1
+                live_var.set(str(live_count))
+                update_rate()
+                log("✅ Tài khoản Live")
+            else:
+                die_count += 1
+                die_var.set(str(die_count))
+                update_rate()
+                log(f"❌ {status_text} — tính là Die")
+
+            # === Lấy Cookie ===
             try:
-                release_position(driver)   # ✅ trả chỗ
-                driver.quit()
-            except:
-                pass
-            log("🔄 Đang chạy lại từ đầu sau lỗi trình duyệt...")
-            # Khuyên: gọi continue thay vì run(thread_id) (tránh nhân thread)
-            continue
+                cookies = driver.get_cookies()
+                cookie_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies]) if cookies else ""
+                log("🍪 Cookie hiện tại:")
+                log(cookie_str if cookie_str else "(empty)")
+                time.sleep(3)
+            except Exception as e:
+                cookie_str = ""
+                log(f"❌ Lỗi khi lấy cookie: {repr(e)}")
+
+            # Nếu KHÔNG phải Live thì insert ngay bây giờ
+            if status_text.lower() in ("die", "checkpoint", "unknown"):
+                # nếu có app (Tk root) thì:
+                try:
+                    app.after(0, lambda: insert_to_tree("Die", username, password, email, cookie_str, two_fa_code=""))
+                except Exception:
+                    insert_to_tree("Die", username, password, email, cookie_str, two_fa_code="")
+
+                # Lưu file (optional) – có fallback cho save_format
+                try:
+                    file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Die.txt")
+                    info_map = {"Username": username, "Pass": password, "Mail": email, "Cookie": cookie_str, "2FA": ""}
+                    fields = save_format if ('save_format' in globals() and isinstance(save_format, (list,tuple)) and save_format) \
+                            else ["Username","Pass","Mail","Cookie","2FA"]
+                    line = "|".join([info_map.get(field, "") for field in fields])
+                    with open(file_path, "a", encoding="utf-8") as f:
+                        f.write(line + "\n")
+                    log(f"💾 (Die early) Đã lưu thông tin vào '{file_path}'")
+                except Exception as e:
+                    log(f"❌ (Die early) Lỗi khi lưu file: {repr(e)}")
+
+                # Quyết định restart
+                try:
+                    warp_off()
+                    time.sleep(2)
+                    release_position(driver)
+                    driver.quit()
+                    driver = None
+                except:
+                    pass
+                log("🔁 Khởi chạy lại phiên...")
+                continue
+            else:
+                log("➡️ LIVE: Tiếp tục BƯỚC TIẾP THEO (Follow/…)")
+
+        except Exception as e:
+            log(f"⚠️ Lỗi khi check live/die: {repr(e)}")
+            
         # === BƯỚC 7: Xử lý bật 2FA ===
         if twofa_var.get():
             try:
@@ -6196,8 +6187,39 @@ tk.Radiobutton(
     bg="white", command=_sync_mode_ui
 ).pack(anchor="w", padx=6, pady=2)
 
+# ================================================================= ẢNH & CHROME ===============================================================
+CONFIG_INI = "config.ini"
+
+def save_ava_folder_to_ini(path):
+    config = configparser.ConfigParser()
+    if os.path.exists(CONFIG_INI):
+        config.read(CONFIG_INI, encoding="utf-8")
+    if "Paths" not in config:
+        config["Paths"] = {}
+    config["Paths"]["ava_folder_path"] = path
+    with open(CONFIG_INI, "w", encoding="utf-8") as f:
+        config.write(f)
+
+def load_ava_folder_from_ini():
+    config = configparser.ConfigParser()
+    if os.path.exists(CONFIG_INI):
+        config.read(CONFIG_INI, encoding="utf-8")
+        return config.get("Paths", "ava_folder_path", fallback="")
+    return ""
+
+def select_ava_folder():
+    global ava_folder_path
+    folder = filedialog.askdirectory(title="Chọn thư mục ảnh avatar")
+    if folder:
+        ava_folder_path = folder
+        save_ava_folder_to_ini(folder)
+        log(f"✅ Đã chọn thư mục ảnh: {ava_folder_path}")
+
+# Khi khởi động, load lại từ ini:
+ava_folder_path = load_ava_folder_from_ini()
+
 tk.Button(col2, text="Chọn thư mục Chrome", width=17, bg="lightgreen", command=select_chrome).pack(pady=3)
-tk.Button(col2, text="Chọn thư mục ảnh",    width=17, bg="lightblue",  command=select_ava_folder).pack(pady=3)
+tk.Button(col2, text="Chọn thư mục ảnh", width=17, bg="lightblue", command=select_ava_folder).pack(pady=3)
 
 tk.Label(col2, text="Proxy (IP:PORT)", bg="white", font=("Arial", 9, "bold")).pack(pady=(5,2))
 proxy_entry = tk.Entry(col2, width=20, bg="lightgray", justify="center")
