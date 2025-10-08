@@ -3696,6 +3696,14 @@ def choose_chrome_folder():
 
 def arrange_after_open(driver, tries=40):
     time.sleep(1)
+    # Nếu user chọn ẩn Chrome (headless) thì không cần sắp xếp cửa sổ
+    try:
+        h = globals().get("hidden_chrome_var")
+        if h and h.get():
+            return
+    except Exception:
+        pass
+
     for _ in range(tries):
         try:
             # 🔒 lấy vị trí trống trong lưới
@@ -4074,9 +4082,23 @@ def build_mobile_chrome_driver(proxy: str | None, log_fn=log):
     mobile_options.add_argument("--disable-background-networking")
     mobile_options.add_argument("--disable-background-timer-throttling")
     mobile_options.add_argument("--disable-client-side-phishing-detection")
+
     # Thêm headless nếu được chọn
-    if hidden_chrome_var.get():
-        mobile_options.add_argument("--headless=new")
+    try:
+        if globals().get("hidden_chrome_var") and hidden_chrome_var.get():
+            # Chrome hiện tại khuyến nghị dùng '--headless=new' nếu hỗ trợ
+            try:
+                mobile_options.add_argument("--headless=new")
+            except Exception:
+                mobile_options.add_argument("--headless")
+            # một vài option bổ sung cho chạy headless ổn định trên Windows
+            mobile_options.add_argument("--disable-gpu")
+            mobile_options.add_argument("--disable-dev-shm-usage")
+            mobile_options.add_argument("--no-sandbox")
+            # có thể set window-size để tránh layout khác biệt trong headless
+            mobile_options.add_argument("--window-size=390,844")
+    except Exception:
+        pass
 
     # Emulate iPhone 15 Pro (UA + viewport)
     mobile_emulation = {
@@ -4116,7 +4138,12 @@ def build_mobile_chrome_driver(proxy: str | None, log_fn=log):
     try:
         if isinstance(all_drivers, list):
             all_drivers.append(drv)
-        if callable(arrange_after):
+        # Chỉ chạy arrange_after nếu helper tồn tại và CHƯA bật headless
+        try:
+            is_hidden = globals().get("hidden_chrome_var") and hidden_chrome_var.get()
+        except Exception:
+            is_hidden = False
+        if callable(arrange_after) and not is_hidden:
             threading.Thread(target=arrange_after, args=(drv,), daemon=True).start()
     except Exception:
         pass
@@ -4637,9 +4664,9 @@ def run_mobile(thread_id=None):
             if status_text.lower() in ("die", "checkpoint", "unknown"):
                 # nếu có app (Tk root) thì:
                 try:
-                    app.after(0, lambda: insert_to_tree(status_text, username, password, email, cookie_str, two_fa_code=""))
-                except:
-                    insert_to_tree(status_text, username, password, email, cookie_str, two_fa_code="")
+                    app.after(0, lambda: insert_to_tree("Die", username, password, email, cookie_str, two_fa_code=""))
+                except Exception:
+                    insert_to_tree("Die", username, password, email, cookie_str, two_fa_code="")
 
                 # Lưu file (optional) – có fallback cho save_format
                 try:
@@ -5210,6 +5237,27 @@ def run(thread_id=None):
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--start-maximized")
 
+        # Nếu user bật Ẩn Chrome -> chạy headless và set một số flag/size
+        is_headless = False
+        try:
+            if globals().get("hidden_chrome_var") and hidden_chrome_var.get():
+                try:
+                    options.add_argument("--headless=new")
+                except Exception:
+                    options.add_argument("--headless")
+                options.add_argument("--disable-gpu")
+                options.add_argument("--disable-dev-shm-usage")
+                options.add_argument("--no-sandbox")
+                try:
+                    w, h = get_chrome_size()
+                    options.add_argument(f"--window-size={w},{h}")
+                except Exception:
+                    options.add_argument("--window-size=1200,800")
+                log("ℹ️ Chạy Chrome ở chế độ Ẩn (headless).")
+                is_headless = True
+        except Exception:
+            is_headless = False
+
         # ✅ nếu có proxy thì thêm (giữ lại logic cũ)
         if proxy and not warp_enabled:
             options.add_argument(f"--proxy-server=http://{proxy}")
@@ -5223,8 +5271,12 @@ def run(thread_id=None):
         driver = se_webdriver.Chrome(service=service, options=options)
         all_drivers.append(driver)
 
-        # 🕒 Sắp xếp Chrome giống V3-Mobile
-        threading.Thread(target=arrange_after_open, args=(driver,), daemon=True).start()
+        # 🕒 Sắp xếp Chrome giống V3-Mobile (chỉ khi không headless)
+        try:
+            if not is_headless:
+                threading.Thread(target=arrange_after_open, args=(driver,), daemon=True).start()
+        except Exception:
+            pass
 
         driver.get("https://www.instagram.com/accounts/emailsignup/")
         WebDriverWait(driver, 15).until(
@@ -6931,17 +6983,29 @@ except Exception:
     pass
 
 # ========================= KHỐI DƯỚI =========================
-# Chrome size & Scale
+# Chrome size & Scale (vertical compact layout)
 chrome_size_frame = tk.Frame(app, bg="white")
-chrome_size_frame.pack(side="left", padx=20)
+chrome_size_frame.pack(side="left", padx=12, anchor="n")
 
-tk.Label(chrome_size_frame, text="Chrome:", bg="white").pack(side="left")
-entry_width  = tk.Entry(chrome_size_frame, width=6, justify="center"); entry_width.insert(0, "1200"); entry_width.pack(side="left", padx=2)
-tk.Label(chrome_size_frame, text="x", bg="white").pack(side="left")
-entry_height = tk.Entry(chrome_size_frame, width=6, justify="center"); entry_height.insert(0, "800");  entry_height.pack(side="left", padx=2)
+# Title
+tk.Label(chrome_size_frame, text="Chrome", bg="white", font=("Arial", 9, "bold")).pack(anchor="w", pady=(2,4))
 
-tk.Label(chrome_size_frame, text="Scale (%):", bg="white").pack(side="left", padx=(10,2))
-entry_scale  = tk.Entry(chrome_size_frame, width=4, justify="center"); entry_scale.insert(0, "100"); entry_scale.pack(side="left", padx=2)
+# Width x Height row (compact)
+row_wh = tk.Frame(chrome_size_frame, bg="white")
+row_wh.pack(anchor="w", pady=1)
+tk.Label(row_wh, text="W:", bg="white").pack(side="left")
+entry_width  = tk.Entry(row_wh, width=6, justify="center"); entry_width.insert(0, "1200"); entry_width.pack(side="left", padx=(4,6))
+tk.Label(row_wh, text="H:", bg="white").pack(side="left")
+entry_height = tk.Entry(row_wh, width=6, justify="center"); entry_height.insert(0, "800");  entry_height.pack(side="left", padx=(4,6))
+
+# Scale row
+row_scale = tk.Frame(chrome_size_frame, bg="white")
+row_scale.pack(anchor="w", pady=1)
+tk.Label(row_scale, text="Scale (%):", bg="white").pack(side="left")
+entry_scale  = tk.Entry(row_scale, width=6, justify="center"); entry_scale.insert(0, "100"); entry_scale.pack(side="left", padx=(6,0))
+
+# Headless checkbox (stacked)
+tk.Checkbutton(chrome_size_frame, text="Ẩn Chrome (Headless)", variable=hidden_chrome_var, bg="white").pack(anchor="w", pady=(6,2))
 
 # Live/Die/Rate
 status_frame = tk.Frame(app, bg="white")
