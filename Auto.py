@@ -75,7 +75,6 @@ from tkinter import scrolledtext
 import threading
 import time
 import math
-import configparser
 from selenium import webdriver as se_webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -90,7 +89,6 @@ import base64
 import names
 import subprocess, re, xml.etree.ElementTree as ET
 import random
-## import configparser (loại bỏ)
 import string
 import pygetwindow as gw
 import os
@@ -120,6 +118,7 @@ import socket, shutil
 from selenium.webdriver.common.actions.pointer_input import PointerInput
 from selenium.webdriver.common.actions.action_builder import ActionBuilder
 
+# ==================================== PHONE ====================================
 # ============================
 # APPIUM SERVER HELPERS
 # ============================
@@ -407,6 +406,7 @@ def refresh_adb_devices_table():
     """
     Quét ADB và đổ dữ liệu vào Treeview 3 cột: UDID | VIEW | CHỌN.
     Giữ lại trạng thái tick cũ nếu UDID vẫn còn online.
+    Cập nhật phone_device_tree.
     """
     try:
         devs = adb_devices()
@@ -418,6 +418,7 @@ def refresh_adb_devices_table():
             if ud not in devs:
                 device_state.pop(ud, None)
 
+        # Cập nhật phone_device_tree
         if phone_device_tree is not None:
             phone_device_tree.delete(*phone_device_tree.get_children())
             for ud in devs:
@@ -428,11 +429,11 @@ def refresh_adb_devices_table():
                 )
 
         if devs:
-            log(f"📡 [Phone] Tìm thấy {len(devs)} thiết bị: {', '.join(devs)}")
+            log(f"📡 Tìm thấy {len(devs)} thiết bị: {', '.join(devs)}")
         else:
-            log("⚠️ [Phone] Không phát hiện thiết bị nào. Kiểm tra USB debugging / cáp / adb devices.")
+            log("⚠️ Không phát hiện thiết bị nào. Kiểm tra USB debugging / cáp / adb devices.")
     except Exception as e:
-        log(f"❌ [Phone] Lỗi refresh ADB: {repr(e)}")
+        log(f"❌ Lỗi refresh ADB: {repr(e)}")
 
 def kill_adb_and_reload():
     try:
@@ -462,11 +463,15 @@ def set_device_status(udid: str, status: str):
 def _toggle_cell(event):
     """
     Bắt click chuột trái vào cột VIEW/CHỌN để đảo trạng thái tick.
+    Hoạt động với phone_device_tree.
     """
-    if phone_device_tree is None:
+    # Xác định tree nào được click
+    tree = event.widget
+    if tree is None:
         return
-    row_id = phone_device_tree.identify_row(event.y)
-    col_id = phone_device_tree.identify_column(event.x)  # "#1" "#2" "#3"
+    
+    row_id = tree.identify_row(event.y)
+    col_id = tree.identify_column(event.x)  # "#1" "#2" "#3"
     if not row_id:
         return
     if col_id == "#2":
@@ -479,8 +484,11 @@ def _toggle_cell(event):
     cur = device_state.get(row_id, {"view": False, "pick": False})
     cur[key] = not cur.get(key, False)
     device_state[row_id] = cur
-    # cập nhật hiển thị
-    phone_device_tree.set(row_id, column=("view" if key == "view" else "pick"), value=_tick(cur[key]))
+    
+    # Cập nhật hiển thị trên tree
+    col_name = "view" if key == "view" else "pick"
+    if phone_device_tree is not None and row_id in phone_device_tree.get_children():
+        phone_device_tree.set(row_id, column=col_name, value=_tick(cur[key]))
 
 def get_checked_udids(kind: str = "pick") -> list:
     """
@@ -1194,11 +1202,11 @@ class AndroidWorker(threading.Thread):
         except:
             adb_shell(udid, "monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1")
 
-        time.sleep(4)
+        time.sleep(10)
 
         # 👉 Tap Add Proxy
         adb_shell(udid, "input", "tap", "860", "1400")
-        time.sleep(2)
+        time.sleep(4)
 
         # 👉 Lấy proxy từ Proxy.txt
         proxy = parse_proxy(read_first_proxy_line_fixed())
@@ -1209,50 +1217,50 @@ class AndroidWorker(threading.Thread):
         # 👉 Protocol HTTP
         adb_shell(udid, "input", "tap", "500", "600")   # tap Protocol
         adb_shell(udid, "input", "tap", "500", "700")   # chọn HTTP
-        time.sleep(1)
+        time.sleep(3)
 
         # 👉 Server (IP)
         adb_shell(udid, "input", "tap", "500", "800")
         adb_shell(udid, "input", "text", proxy["ip"])
-        time.sleep(1)
+        time.sleep(3)
 
         # 👉 Port
         adb_shell(udid, "input", "tap", "500", "950")
         adb_shell(udid, "input", "text", proxy["port"])
-        time.sleep(1)
+        time.sleep(3)
 
         # 👉 Nếu có user/pass thì xử lý thêm
         if proxy.get("has_auth"):
             # Chọn Authentication method → Username/Password
             adb_shell(udid, "input", "tap", "500", "1300")
-            time.sleep(1)
+            time.sleep(3)
             adb_shell(udid, "input", "tap", "500", "1100")
-            time.sleep(1)
+            time.sleep(3)
 
             # Vuốt xuống để hiện ô User/Pass
             adb_shell(udid, "input", "swipe", "500", "1500", "500", "500", "300")
-            time.sleep(1)
+            time.sleep(6)
 
             # Username
             adb_shell(udid, "input", "tap", "500", "1100")
             adb_shell(udid, "input", "text", proxy["user"])
-            time.sleep(1)
+            time.sleep(3)
 
             # Password
             adb_shell(udid, "input", "tap", "500", "1250")
             adb_shell(udid, "input", "text", proxy["pwd"])
-            time.sleep(1)
+            time.sleep(3)
 
         # 👉 Save
         adb_shell(udid, "input", "tap", "1000", "100")
-        time.sleep(1)
+        time.sleep(3)
 
         # 👉 Start
         adb_shell(udid, "input", "tap", "500", "1400")
-        time.sleep(2)
+        time.sleep(4)
 
         # 👉 Popup Connection request (OK)
-        adb_shell(udid, "input", "tap", "600", "700")
+        adb_shell(udid, "input", "tap", "800", "1300")
 
         if proxy.get("has_auth"):
             self.log(f"✅ Đã cấu hình Proxy {proxy['ip']}:{proxy['port']} (User/Pass)")
@@ -2466,11 +2474,15 @@ class AndroidWorker(threading.Thread):
             log(f"⚠️ Lỗi khi lưu Live.txt: {repr(e)}")
 
         # --- Insert vào TreeView (nếu là Live, có thể có 2FA) ---
+        tree_item_id = None
         try:
             # Chỉ truyền secret_key vào cột 2FA, nếu không có thì để trống hoàn toàn
-            app.after(0, lambda: insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else ""))
+            tree_item_id = insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else "")
         except Exception:
-            insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else "")
+            tree_item_id = insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else "")
+        
+        # Lưu tree_item_id vào instance để dùng cho update sau
+        self.tree_item_id = tree_item_id
         time.sleep(4)
         
         # ==== PUSH 1 ẢNH NGẪU NHIÊN VÀO PHONE + MEDIA SCAN (style AutoPhone) ====
@@ -2737,8 +2749,14 @@ class AndroidWorker(threading.Thread):
 
             if shared:
                 log(f"✅ [{udid}] Đã đăng bài mới.")
+                # Update tree: POST = ✅
+                if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                    app.after(0, lambda: update_tree_column(self.tree_item_id, "POST", "✅"))
             else:
                 log(f"⚠️ [{udid}] Không bấm được nút Share/Chia sẻ.")
+                # Update tree: POST = ❌
+                if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                    app.after(0, lambda: update_tree_column(self.tree_item_id, "POST", "❌"))
             time.sleep(15)
         
         # ==== AUTO FOLLOW NẾU CÓ CHỌN ====
@@ -2801,9 +2819,8 @@ class AndroidWorker(threading.Thread):
                     follow_count = 10
 
                 FOLLOW_USERNAMES = [
-                    "n.nhu1207","v.anh.26","shxuy0bel421162","k.mbappe","valentin_otz","shx_pe06","nguyen57506",
-                    "mhai_187","ductoan1103","therock","evil_tangyuan412","lunaistabby","fandango","uncle_bbao",
-                    "monkeycatluna",
+                    "n.nhu1207","v.anh.26","shxuy0bel421162","k.mbappe","shx_pe06","nguyen57506",
+                    "mhai_187","ductoan1103","evil_tangyuan412","lunaistabby","monkeycatluna",
                 ]
                 follow_list = random.sample(FOLLOW_USERNAMES, min(follow_count, len(FOLLOW_USERNAMES)))
                 followed = 0
@@ -2873,6 +2890,11 @@ class AndroidWorker(threading.Thread):
                             log(f"✅ Đã nhấn Follow cho {username}")
                             time.sleep(3)
                             followed += 1
+                            
+                            # Update tree: FOLLOW = số lượng/tổng số
+                            if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                                follow_status = f"{followed}/{follow_count}"
+                                app.after(0, lambda fs=follow_status: update_tree_column(self.tree_item_id, "FOLLOW", fs))
 
                             # --- Kiểm tra popup block follow ---
                             try:
@@ -2967,26 +2989,37 @@ class AndroidWorker(threading.Thread):
                 pass  # Không có popup thì bỏ qua
             
             # UP AVATAR 
-            # 1. Tìm và ấn vào "Change profile picture"
-            el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Change profile picture")')
-            el.click()
-            log("✅ Đã nhấn Change profile picture")
-            time.sleep(3)
+            avatar_success = False
+            try:
+                # 1. Tìm và ấn vào "Change profile picture"
+                el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Change profile picture")')
+                el.click()
+                log("✅ Đã nhấn Change profile picture")
+                time.sleep(3)
 
-            # 2. Chọn "Choose from library"
-            choose = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Choose from library")')
-            choose.click()
-            log("✅ Đã chọn Choose from library")
-            time.sleep(6)
+                # 2. Chọn "Choose from library"
+                choose = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Choose from library")')
+                choose.click()
+                log("✅ Đã chọn Choose from library")
+                time.sleep(6)
 
-            # 3. Ấn "Done" (góc phải trên)
-            for txt in ["Done", "Next", "Tiếp", "Xong", "Lưu"]:
-                try:
-                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
-                    break
-                except Exception:
-                    pass
-            time.sleep(13)
+                # 3. Ấn "Done" (góc phải trên)
+                for txt in ["Done", "Next", "Tiếp", "Xong", "Lưu"]:
+                    try:
+                        d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
+                        avatar_success = True
+                        break
+                    except Exception:
+                        pass
+                time.sleep(13)
+            except Exception as e:
+                log(f"❌ Lỗi khi upload avatar: {e}")
+                avatar_success = False
+            
+            # Update tree: AVATAR
+            if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                avatar_status = "✅" if avatar_success else "❌"
+                app.after(0, lambda: update_tree_column(self.tree_item_id, "AVATAR", avatar_status))
 
             # Nhấn Edit profile
             try:
@@ -3011,7 +3044,7 @@ class AndroidWorker(threading.Thread):
             except Exception as e:
                 log(f"Lỗi khi nhấn nút 'Edit profile': {e}")
 
-            # Điền BIO 
+            # =============== EDIT BIO ===============
             # 1. Ấn vào label Bio
             el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Bio")')
             el.click()
@@ -3061,10 +3094,15 @@ class AndroidWorker(threading.Thread):
                 log(f"✅ [{udid}] Đã cập nhật Bio")
             else:
                 log(f"⚠️ [{udid}] Không bấm được nút Lưu/✓ trong màn Bio.")
+            
+            # Update tree: BIO
+            if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                bio_status = "✅" if saved else "❌"
+                app.after(0, lambda: update_tree_column(self.tree_item_id, "BIO", bio_status))
 
             time.sleep(6)
 
-            # Chọn Gender 
+            #============== EDIT GENDER ===============
             # 1. Cuộn xuống để thấy label Gender (nếu cần)
             d.swipe(500, 1500, 500, 500, 500)  # Điều chỉnh tọa độ nếu cần
             time.sleep(3)
@@ -3111,9 +3149,15 @@ class AndroidWorker(threading.Thread):
                         continue
 
             if saved:
-                log(f"✅ [{udid}] Đã cập nhật Bio")
+                log(f"✅ [{udid}] Đã cập nhật Gender")
             else:
                 log(f"⚠️ [{udid}] Không bấm được nút Lưu/✓ trong màn Gender.")
+            
+            # Update tree: GENDER
+            if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                gender_status = "✅" if saved else "❌"
+                app.after(0, lambda: update_tree_column(self.tree_item_id, "GENDER", gender_status))
+            
             time.sleep(6)
         
         # ==== CHUYỂN SANG PRO ACCOUNT NẾU CÓ CHỌN ====
@@ -3126,6 +3170,9 @@ class AndroidWorker(threading.Thread):
             # 2) Cuộn và bấm "Switch to professional account"
             if not _scroll_into_view_by_text(d, "Switch to professional"):
                 log(f"⚠️ [{udid}] Không tìm thấy mục 'Switch to professional account'.")
+                # Update tree: PROFESSIONAL = ❌
+                if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                    app.after(0, lambda: update_tree_column(self.tree_item_id, "PROFESSIONAL", "❌"))
                 return
             wait.until(EC.element_to_be_clickable(
                 (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Switch to professional")'))
@@ -3159,6 +3206,9 @@ class AndroidWorker(threading.Thread):
             if target:
                 if not _scroll_into_view_by_text(d, target, swipe_delay=0.7, max_swipes=10):
                     log(f"⚠️ [{udid}] Không tìm thấy category '{target}'.")
+                    # Update tree: PROFESSIONAL = ❌
+                    if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                        app.after(0, lambda: update_tree_column(self.tree_item_id, "PROFESSIONAL", "❌"))
                     return
                 # chọn đúng item
                 wait.until(EC.element_to_be_clickable(
@@ -3206,6 +3256,10 @@ class AndroidWorker(threading.Thread):
                     pass
 
             log(f"✅ [{udid}] Đã chuyển sang Professional: Category='{category}', Type={target_type}.")
+            
+            # Update tree: PROFESSIONAL = ✅
+            if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                app.after(0, lambda: update_tree_column(self.tree_item_id, "PROFESSIONAL", "✅"))
 
         # Bật chế độ máy bay và tự chạy lại phiên mới
         try:
@@ -3562,11 +3616,12 @@ def type_text_slowly(element, text, delay=0.18):
         time.sleep(delay)
 
 def get_delay(key, default):
-    try:
-        val = delay_entries[key].get().strip()
-        return float(val) if val else default
-    except:
-        return default
+    # delay_entries was removed, return default values
+    return default
+
+def get_mobile_delay(key, default):
+    # mobile_delay_entries was removed, return default values
+    return default
 
 def _set_container_enabled(container, enabled: bool):
     state = "normal" if enabled else "disabled"
@@ -3601,9 +3656,10 @@ def _sync_mode_ui():
     _set_container_enabled(phone_settings,   enabled=(mode == "phone"))
 
 def get_chrome_size(default_w=1200, default_h=800):
+    """Lấy kích thước Chrome cho Desktop"""
     try:
-        w = int(entry_width.get().strip())
-        h = int(entry_height.get().strip())
+        w = int(desktop_entry_width.get().strip())
+        h = int(desktop_entry_height.get().strip())
         # giới hạn tối thiểu để tránh lỗi
         if w < 400: w = 400
         if h < 300: h = 300
@@ -3612,8 +3668,9 @@ def get_chrome_size(default_w=1200, default_h=800):
         return default_w, default_h
 
 def get_chrome_scale(default=1.0):
+    """Lấy scale Chrome cho Desktop"""
     try:
-        s = int(entry_scale.get().strip())
+        s = int(desktop_entry_scale.get().strip())
         if s < 50: s = 50    # tối thiểu 50%
         if s > 300: s = 300  # tối đa 300%
         return s / 100.0     # chuyển % thành số thực
@@ -3646,6 +3703,18 @@ pause_event.set()  # Mặc định là “cho phép chạy”
 
 warp_enabled = True
 proxy_entry = None
+
+def is_warp_mode():
+    """Kiểm tra xem có đang ở chế độ WARP (chỉ 'warp', KHÔNG phải 'warp-spin') không"""
+    try:
+        mode = ui_mode_var.get().strip().lower()
+        if mode == "desktop":
+            return network_mode_var.get() == "warp"
+        elif mode == "mobile":
+            return network_mode_mobile_var.get() == "warp"
+        return False
+    except:
+        return False
 
 # ==== Popup for Log & Tree ====
 popup_win = None
@@ -3809,9 +3878,10 @@ def get_bio_text(context: str = "auto"):
     return DEFAULT_BIO
 
 
-# --- Lưu & Load config (dùng 1 file config.json) ---
+# --- Lưu & Load config (dùng 1 file config.json duy nhất) ---
 CONFIG_FILE = "config.json"
 def save_config():
+    """Lưu tất cả config vào một file config.json duy nhất"""
     cfg = {
         "ava_folder_path": globals().get("ava_folder_path", ""),
         "chrome_path": globals().get("chrome_path", ""),
@@ -3819,13 +3889,28 @@ def save_config():
         "photo_folder_phone": globals().get("photo_folder_phone", ""),
         "ig_app_choice": globals().get("phone_ig_app_var", tk.StringVar(value="instagram")).get(),
         "scrcpy_path": globals().get("scrcpy_path", ""),
-        "hidden_chrome": hidden_chrome_var.get()
+        "hidden_chrome": hidden_chrome_var.get(),
+        "warp_controller_path": globals().get("warp_controller_path", ""),
+        "warpxoay_path": globals().get("warpxoay_path", ""),
+        "chrome_folder": globals().get("chrome_folder", ""),
+        
+        # Desktop Chrome Size
+        "desktop_width": desktop_entry_width.get() if 'desktop_entry_width' in globals() and desktop_entry_width else "1200",
+        "desktop_height": desktop_entry_height.get() if 'desktop_entry_height' in globals() and desktop_entry_height else "800",
+        "desktop_scale": desktop_entry_scale.get() if 'desktop_entry_scale' in globals() and desktop_entry_scale else "100",
+        
+        # Mobile Chrome Size
+        "mobile_width": entry_width_m.get() if 'entry_width_m' in globals() and entry_width_m else "400",
+        "mobile_height": entry_height_m.get() if 'entry_height_m' in globals() and entry_height_m else "844",
+        "mobile_scale": entry_scale_m.get() if 'entry_scale_m' in globals() and entry_scale_m else "100",
     }
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 def load_config():
+    """Load tất cả config từ một file config.json duy nhất"""
     global ava_folder_path, chrome_path, save_format, photo_folder_phone, scrcpy_path
+    global warp_controller_path, warpxoay_path, chrome_folder
     config_file = CONFIG_FILE
     if os.path.exists(config_file):
         try:
@@ -3836,6 +3921,10 @@ def load_config():
                 save_format = cfg.get("save_format", "")
                 photo_folder_phone = cfg.get("photo_folder_phone", "")
                 scrcpy_path = cfg.get("scrcpy_path", "")
+                warp_controller_path = cfg.get("warp_controller_path", "")
+                warpxoay_path = cfg.get("warpxoay_path", "")
+                chrome_folder = cfg.get("chrome_folder", "")
+                
                 if "ig_app_choice" in cfg:
                     try:
                         phone_ig_app_var.set(cfg["ig_app_choice"])
@@ -3846,6 +3935,51 @@ def load_config():
                         hidden_chrome_var.set(cfg["hidden_chrome"])
                     except Exception:
                         pass
+                
+                # Load Desktop Chrome Size
+                if "desktop_width" in cfg and 'desktop_entry_width' in globals() and desktop_entry_width:
+                    try:
+                        desktop_entry_width.delete(0, tk.END)
+                        desktop_entry_width.insert(0, cfg["desktop_width"])
+                    except Exception:
+                        pass
+                
+                if "desktop_height" in cfg and 'desktop_entry_height' in globals() and desktop_entry_height:
+                    try:
+                        desktop_entry_height.delete(0, tk.END)
+                        desktop_entry_height.insert(0, cfg["desktop_height"])
+                    except Exception:
+                        pass
+                
+                if "desktop_scale" in cfg and 'desktop_entry_scale' in globals() and desktop_entry_scale:
+                    try:
+                        desktop_entry_scale.delete(0, tk.END)
+                        desktop_entry_scale.insert(0, cfg["desktop_scale"])
+                    except Exception:
+                        pass
+                
+                # Load Mobile Chrome Size
+                if "mobile_width" in cfg and 'entry_width_m' in globals() and entry_width_m:
+                    try:
+                        entry_width_m.delete(0, tk.END)
+                        entry_width_m.insert(0, cfg["mobile_width"])
+                    except Exception:
+                        pass
+                
+                if "mobile_height" in cfg and 'entry_height_m' in globals() and entry_height_m:
+                    try:
+                        entry_height_m.delete(0, tk.END)
+                        entry_height_m.insert(0, cfg["mobile_height"])
+                    except Exception:
+                        pass
+                
+                if "mobile_scale" in cfg and 'entry_scale_m' in globals() and entry_scale_m:
+                    try:
+                        entry_scale_m.delete(0, tk.END)
+                        entry_scale_m.insert(0, cfg["mobile_scale"])
+                    except Exception:
+                        pass
+                
                 if ava_folder_path:
                     log(f"📂 Đã load thư mục ảnh: {ava_folder_path}")
                 if chrome_path:
@@ -3854,6 +3988,8 @@ def load_config():
                     log(f"📂 Đã load folder ảnh (Phone): {photo_folder_phone}")
                 if scrcpy_path:
                     _log_scrcpy_path(scrcpy_path)
+                if warp_controller_path:
+                    log(f"🔧 Đã load WARP Controller: {warp_controller_path}")
         except Exception as e:
             log(f"⚠ Không load được config.json: {e}")
 
@@ -3887,7 +4023,7 @@ def insert_to_tree(status_text, username, password, email, cookie_str, two_fa_co
         token_val  = ""  # để trống
         two_fa_val = two_fa_code if two_fa_code else ""
 
-        tree.insert(
+        item_id = tree.insert(
             "", "end",
             values=(
                 len(tree.get_children())+1,   # STT
@@ -3898,12 +4034,34 @@ def insert_to_tree(status_text, username, password, email, cookie_str, two_fa_co
                 "127.0.0.1", "NoProxy",
                 "LIVE" if status_tag == "LIVE" else "",
                 "DIE"  if status_tag == "DIE"  else "",
+                "",  # FOLLOW - sẽ update sau
+                "",  # POST
+                "",  # AVATAR
+                "",  # GENDER
+                "",  # BIO
+                "",  # PROFESSIONAL
             ),
             tags=(status_tag,)
         )
         log(f"✅ Đã insert {status_text} lên TreeView: {username}")
+        return item_id  # Trả về item_id để update sau
     except Exception as e:
         log(f"⚠️ Không thể thêm vào Treeview (helper): {repr(e)}")
+        return None
+
+def update_tree_column(item_id, column_name, value):
+    """Update một cột cụ thể trong TreeView"""
+    try:
+        if not item_id:
+            return
+        cols = ["STT","TRẠNG THÁI","USERNAME","PASS","MAIL","PHONE","COOKIE","2FA","TOKEN","IP","PROXY","LIVE","DIE","FOLLOW","POST","AVATAR","GENDER","BIO","PROFESSIONAL"]
+        col_index = cols.index(column_name)
+        current_values = list(tree.item(item_id, "values"))
+        current_values[col_index] = value
+        tree.item(item_id, values=current_values)
+        log(f"📝 Updated {column_name} = {value}")
+    except Exception as e:
+        log(f"⚠️ Lỗi khi update tree column {column_name}: {e}")
 
 # --- Chọn Chrome ---
 def select_chrome():
@@ -4108,8 +4266,16 @@ def build_mobile_chrome_driver(proxy: str | None, log_fn=log):
         pass
 
     # Emulate iPhone 15 Pro (UA + viewport)
+    # Lấy kích thước từ Mobile Settings
+    try:
+        mobile_width = int(entry_width_m.get()) if entry_width_m and entry_width_m.get() else 390
+        mobile_height = int(entry_height_m.get()) if entry_height_m and entry_height_m.get() else 844
+    except:
+        mobile_width = 390
+        mobile_height = 844
+    
     mobile_emulation = {
-        "deviceMetrics": {"width": 390, "height": 844, "pixelRatio": 3.0},
+        "deviceMetrics": {"width": mobile_width, "height": mobile_height, "pixelRatio": 3.0},
         "userAgent": (
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
             "AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/137.0.0.0 "
@@ -4166,6 +4332,22 @@ def start_process():
         win = tk.Toplevel(app)
         win.title("Quản Lý Reg - START")
         win.geometry("1700x650")
+        
+        # Ẩn cửa sổ chính khi mở cửa sổ mới
+        app.withdraw()
+        
+        # Định nghĩa hàm xử lý khi đóng cửa sổ
+        def on_closing():
+            try:
+                # Hiện lại cửa sổ chính
+                app.deiconify()
+                # Đóng cửa sổ mới
+                win.destroy()
+            except:
+                pass
+        
+        # Gán sự kiện đóng cửa sổ
+        win.protocol("WM_DELETE_WINDOW", on_closing)
 
         # Live/Die/Rate
         status_frame = tk.Frame(win, bg="white")
@@ -4185,7 +4367,7 @@ def start_process():
         tree_frame = tk.LabelFrame(main_frame, text="Accounts", bg="white", font=("Arial", 10, "bold"))
         tree_frame.pack(side="top", fill="both", expand=True, padx=5, pady=(0,5))
 
-        cols = ["STT","TRẠNG THÁI","USERNAME","PASS","MAIL","PHONE","COOKIE","2FA","TOKEN","IP","PROXY","LIVE","DIE"]
+        cols = ["STT","TRẠNG THÁI","USERNAME","PASS","MAIL","PHONE","COOKIE","2FA","TOKEN","IP","PROXY","LIVE","DIE","FOLLOW","POST","AVATAR","GENDER","BIO","PROFESSIONAL"]
         global tree
         tree = ttk.Treeview(tree_frame, columns=cols, show="headings", height=12)
         vsb = ttk.Scrollbar(tree_frame, orient="vertical",   command=tree.yview);  tree.configure(yscrollcommand=vsb.set); vsb.pack(side="right",  fill="y")
@@ -4193,8 +4375,8 @@ def start_process():
         tree.pack(fill="both", expand=True)
 
         for col in cols:
-            tree.heading(col, text=col)
-            tree.column(col, width=120, anchor="w")
+            tree.heading(col, text=col, anchor="center")
+            tree.column(col, width=120, anchor="center")
 
         tree.tag_configure("LIVE", background="lightgreen")
         tree.tag_configure("DIE",  background="tomato")
@@ -4212,6 +4394,8 @@ def start_process():
         def stop_all():
             """Dừng toàn bộ phiên và đóng cửa sổ ngay lập tức"""
             try:
+                # Hiện lại cửa sổ chính
+                app.deiconify()
                 # Đóng cửa sổ NGAY LẬP TỨC
                 win.destroy()
                 
@@ -4268,6 +4452,13 @@ def start_process():
                                 pass
                         
                         log("✅ Đã dừng toàn bộ phiên.")
+                        
+                        # Đợi một chút để cleanup hoàn tất
+                        time.sleep(1)
+                        
+                        # Khởi động lại tool
+                        log("🔁 Đang khởi động lại tool...")
+                        restart_tool()
                         
                     except Exception as e:
                         log(f"⚠️ Lỗi khi cleanup: {e}")
@@ -4517,7 +4708,7 @@ def run_mobile(thread_id=None):
         pause_event.wait()
         try:
             proxy = (proxy_entry.get().strip() if proxy_entry else "")
-            if warp_enabled:
+            if is_warp_mode():
                 log("🌐 [Mobile] WARP bật → bỏ qua proxy.")
             else:
                 log(f"🌐 [Mobile] WARP tắt → proxy: {proxy or 'No proxy'}")
@@ -4667,7 +4858,7 @@ def run_mobile(thread_id=None):
 
         # 7) Nhập Password → Next qua vài bước
         pause_event.wait()
-        if warp_enabled:
+        if is_warp_mode():
             warp_off()
             time.sleep(3)
         try:
@@ -4749,7 +4940,7 @@ def run_mobile(thread_id=None):
             log(f"⚠️ [Mobile] Bỏ qua kiểm username: {e}")
         time.sleep(10)
         # 11) I agree (nếu có nhiều lần)
-        if warp_enabled:
+        if is_warp_mode():
                 warp_change_ip()
                 time.sleep(8)
         pause_event.wait()
@@ -4852,21 +5043,12 @@ def run_mobile(thread_id=None):
 
         except Exception as e:
             log(f"⚠️ Lỗi khi check live/die: {repr(e)}")
-
-        # Quay lại giao diện Desktop
-        log("🖥 Quay lại giao diện Desktop...")
-        driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
-        driver.execute_cdp_cmd("Emulation.setUserAgentOverride", {
-            "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-        })
-        driver.refresh()
-        time.sleep(5)
-
+        
         # === BƯỚC 7: Xử lý bật 2FA ===
         pause_event.wait()
         if enable_2fa.get():
             try:
-                if warp_enabled:
+                if is_warp_mode():
                     warp_off()
                     time.sleep(2)
                 log("🔐 Bắt đầu bật xác thực hai yếu tố (2FA)...")
@@ -4968,7 +5150,7 @@ def run_mobile(thread_id=None):
                             });
                         """)
                         log("✅ Đã nhấn nút Next để hoàn tất bật 2FA")
-                        time.sleep(6)
+                        time.sleep(12)
                         wait_all("Bật 2FA", thread_id)
                     except Exception as e:
                         log(f"❌ Lỗi khi nhấn nút Next hoàn tất 2FA: {repr(e)}")
@@ -4989,17 +5171,14 @@ def run_mobile(thread_id=None):
             time.sleep(3)
 
         # === Insert vào Treeview ===
+        tree_item_id = None
         try:
             status_tag = "LIVE" if status_text.lower() == "live" else "DIE"
             phone_val = locals().get("phone", "")
             token_val = locals().get("token", "")
 
-            tree.insert("", "end", values=(
-                len(tree.get_children())+1, status_text, username, password, email, phone_val, cookie_str,
-                locals().get("two_fa_code", ""), token_val, "127.0.0.1", "NoProxy",
-                "LIVE" if status_tag=="LIVE" else "",
-                "DIE" if status_tag=="DIE" else ""
-            ), tags=(status_tag,))
+            tree_item_id = insert_to_tree(status_text, username, password, email, cookie_str, locals().get("two_fa_code", ""))
+            log(f"✅ [Mobile] Đã thêm vào TreeView với ID: {tree_item_id}")
         except Exception as e:
             log(f"⚠️ Không thể thêm vào Treeview: {repr(e)}")
 
@@ -5025,12 +5204,40 @@ def run_mobile(thread_id=None):
         except Exception as e:
             log(f"❌ Lỗi khi lưu file: {repr(e)}")
 
+        # Quay lại giao diện Desktop
+        log("🖥 Quay lại giao diện Desktop...")
+        driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
+        driver.execute_cdp_cmd("Emulation.setUserAgentOverride", {
+            "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        })
+        driver.refresh()
+        time.sleep(10)
+
         # === BƯỚC 5: Follow ===
         pause_event.wait()
         if enable_follow.get():
+            followed_count = 0
             try:
-                log("🚀 Bắt đầu follow các link...")
-                time.sleep(3)
+                log("🚀 [Mobile] Bắt đầu follow các link...")
+                
+                # Quay về trang chính Instagram
+                log("🏠 [Mobile] Quay về trang chính Instagram...")
+                driver.get("https://www.instagram.com/")
+                time.sleep(8)
+                
+                # Xử lý popup "Save Login" nếu có
+                try:
+                    log("🔍 [Mobile] Kiểm tra popup 'Save Login'...")
+                    not_now_btn = WebDriverWait(driver, 5).until(
+                        EC.element_to_be_clickable((By.XPATH, "//span[text()='Not now']"))
+                    )
+                    not_now_btn.click()
+                    log("✅ [Mobile] Đã nhấn 'Not now' popup Save Login")
+                    time.sleep(2)
+                except:
+                    log("ℹ️ [Mobile] Không thấy popup Save Login hoặc đã đóng")
+                
+                time.sleep(2)
 
                 follow_links = [
                     "https://www.instagram.com/shx_pe06/",
@@ -5045,9 +5252,9 @@ def run_mobile(thread_id=None):
                     "https://www.instagram.com/ngockem_/",
                 ]
 
-                # Lấy số lượng follow từ ô nhập
+                # Lấy số lượng follow từ ô nhập Mobile
                 try:
-                    num_follow = int(follow_count_entry.get())
+                    num_follow = int(mobile_follow_count_entry.get())
                 except:
                     num_follow = 5
                 num_follow = min(num_follow, len(follow_links))  
@@ -5057,28 +5264,41 @@ def run_mobile(thread_id=None):
                 for link in selected_links:
                     try:
                         driver.get(link)
-                        log(f"🌐 Đã mở link: {link}")
+                        log(f"🌐 [Mobile] Đã mở link: {link}")
                         time.sleep(5)
 
                         follow_button = WebDriverWait(driver, 10).until(
                             EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Follow']"))
                         )
                         follow_button.click()
-                        log(f"✅ Đã follow: {link}")
+                        followed_count += 1
+                        log(f"✅ [Mobile] Đã follow: {link}")
+                        
+                        # Update FOLLOW column
+                        if tree_item_id:
+                            follow_status = f"{followed_count}/{num_follow}"
+                            app.after(0, lambda s=follow_status: update_tree_column(tree_item_id, "FOLLOW", s))
+                            log(f"📊 [Mobile] Cập nhật FOLLOW: {follow_status}")
+                        
                         time.sleep(6)
                     except Exception as e:
-                        log(f"❌ Không thể follow {link}: {repr(e)}")
+                        log(f"❌ [Mobile] Không thể follow {link}: {repr(e)}")
 
             except Exception as e:
                 log(f"❌ Lỗi trong quá trình follow: {repr(e)}")
-                wait_all("Follow", thread_id)
+                # Bỏ đồng bộ luồng cho Mobile
+                # wait_all("Follow", thread_id)
 
         # === BƯỚC 6: Upload avatar ở giao diện mobile ===
         pause_event.wait()
         if enable_avatar.get():
             time.sleep(4)
+            avatar_success = False
+            gender_saved = False
+            bio_saved = False
+            post_shared = False
             try:
-                log("📱 Chuyển sang giao diện Mobile (iPhone 15 Pro Max)...")
+                log("📱 [Mobile] Chuyển sang giao diện Mobile (iPhone 15 Pro Max)...")
                 driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
                     "mobile": True,
                     "width": 390,
@@ -5100,7 +5320,7 @@ def run_mobile(thread_id=None):
                 time.sleep(3)
 
                 # Mở trang chỉnh sửa hồ sơ
-                log("👤 Mở trang chỉnh sửa hồ sơ để upload avatar...")
+                log("👤 [Mobile] Mở trang chỉnh sửa hồ sơ để upload avatar...")
                 driver.get("https://www.instagram.com/accounts/edit/")
                 WebDriverWait(driver, 15).until(
                     EC.presence_of_element_located((By.XPATH, "//input[@accept='image/jpeg,image/png']"))
@@ -5123,40 +5343,54 @@ def run_mobile(thread_id=None):
                     }
                     """)
                 time.sleep(3)
+                
                 # Chọn female
-                driver.execute_script("""
-                    const femaleOption = document.evaluate(
-                        "//span[normalize-space(text())='Female']",
-                        document,
-                        null,
-                        XPathResult.FIRST_ORDERED_NODE_TYPE,
-                        null
-                    ).singleNodeValue;
-                    if (femaleOption) {
-                        femaleOption.click();
-                    } else {
-                        console.warn("❌ Không tìm thấy option 'Female'");
-                    }
-                    """)
-                time.sleep(3)
+                try:
+                    driver.execute_script("""
+                        const femaleOption = document.evaluate(
+                            "//span[normalize-space(text())='Female']",
+                            document,
+                            null,
+                            XPathResult.FIRST_ORDERED_NODE_TYPE,
+                            null
+                        ).singleNodeValue;
+                        if (femaleOption) {
+                            femaleOption.click();
+                        } else {
+                            console.warn("❌ Không tìm thấy option 'Female'");
+                        }
+                        """)
+                    time.sleep(3)
+                    gender_saved = True
+                    if tree_item_id:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "GENDER", "✅"))
+                        log("✅ [Mobile] Đã chọn Gender: Female")
+                except Exception as e:
+                    if tree_item_id:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "GENDER", "❌"))
+                    log(f"❌ [Mobile] Lỗi chọn Gender: {repr(e)}")
 
                 # Điền Bio (theo lựa chọn GUI) — chuẩn React (setNativeValue + input/change)
-                bio_value = get_bio_text()
-                driver.execute_script("""
-                (function(val){
-                    const el = document.querySelector("textarea[name='biography'], #pepBio, textarea[aria-label='Bio'], textarea[aria-label='Tiểu sử']");
-                    if (!el) { console.warn("❌ Không tìm thấy ô Bio (#pepBio/biography)"); return; }
-                    const proto  = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-                    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-                    if (setter) setter.call(el, val); else el.value = val;  // fallback
-                    el.dispatchEvent(new Event('input',  {bubbles:true}));
-                    el.dispatchEvent(new Event('change', {bubbles:true}));
-                    el.blur();
-                    console.log("✍️ Đã điền Bio:", val);
-                })(arguments[0]);
-                """, bio_value)
-                log(f"✍️ Đã điền Bio: {bio_value}")
-                time.sleep(1.5)
+                try:
+                    bio_value = get_bio_text()
+                    driver.execute_script("""
+                    (function(val){
+                        const el = document.querySelector("textarea[name='biography'], #pepBio, textarea[aria-label='Bio'], textarea[aria-label='Tiểu sử']");
+                        if (!el) { console.warn("❌ Không tìm thấy ô Bio (#pepBio/biography)"); return; }
+                        const proto  = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+                        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                        if (setter) setter.call(el, val); else el.value = val;  // fallback
+                        el.dispatchEvent(new Event('input',  {bubbles:true}));
+                        el.dispatchEvent(new Event('change', {bubbles:true}));
+                        el.blur();
+                        console.log("✍️ Đã điền Bio:", val);
+                    })(arguments[0]);
+                    """, bio_value)
+                    log(f"✍️ [Mobile] Đã điền Bio: {bio_value}")
+                    time.sleep(1.5)
+                    bio_saved = True
+                except Exception as e:
+                    log(f"❌ [Mobile] Lỗi điền Bio: {repr(e)}")
 
                 # Nhấn Submit
                 driver.execute_script("""
@@ -5176,38 +5410,75 @@ def run_mobile(thread_id=None):
                 })();
                 """)
                 time.sleep(2)
+                
+                # Update BIO column
+                if tree_item_id:
+                    if bio_saved:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "BIO", "✅"))
+                        log("✅ [Mobile] Bio đã lưu thành công")
+                    else:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "BIO", "❌"))
+                        log("❌ [Mobile] Bio lưu thất bại")
 
                 # Lấy ảnh và upload
-                if not ava_folder_path or not os.path.exists(ava_folder_path):
-                    log("❌ Chưa chọn thư mục ảnh hoặc thư mục không tồn tại.")
-                else:
-                    image_files = [f for f in os.listdir(ava_folder_path) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
-                    if image_files:
-                        selected_path = os.path.join(ava_folder_path, random.choice(image_files))
-                        driver.find_element(By.XPATH, "//input[@accept='image/jpeg,image/png']").send_keys(selected_path)
-                        log(f"✅ Đã upload avatar: {os.path.basename(selected_path)}")
-                        time.sleep(3)
-                        # Lưu avatar
-                        WebDriverWait(driver, 15).until(
-                            EC.element_to_be_clickable((By.XPATH, "//button[text()='Save']"))
-                        ).click()
-                        log("💾 Đã lưu avatar")
-                        time.sleep(10)
-
-                        # Nếu có nút Post thì click
-                        try:
-                            post_btn = WebDriverWait(driver, 5).until(
-                                EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'_a9--') and text()='Post']"))
-                            )
-                            driver.execute_script("arguments[0].click();", post_btn)
-                            log("✅ Đã click Post")
-                            time.sleep(12)
-                        except:
-                            log("ℹ Không thấy nút Post, bỏ qua.")
+                try:
+                    if not ava_folder_path or not os.path.exists(ava_folder_path):
+                        log("❌ [Mobile] Chưa chọn thư mục ảnh hoặc thư mục không tồn tại.")
+                        if tree_item_id:
+                            app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "❌"))
                     else:
-                        log("❌ Không có ảnh hợp lệ trong thư mục.")
+                        image_files = [f for f in os.listdir(ava_folder_path) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+                        if image_files:
+                            selected_path = os.path.join(ava_folder_path, random.choice(image_files))
+                            driver.find_element(By.XPATH, "//input[@accept='image/jpeg,image/png']").send_keys(selected_path)
+                            log(f"✅ [Mobile] Đã upload avatar: {os.path.basename(selected_path)}")
+                            time.sleep(3)
+                            
+                            # Lưu avatar
+                            WebDriverWait(driver, 15).until(
+                                EC.element_to_be_clickable((By.XPATH, "//button[text()='Save']"))
+                            ).click()
+                            log("💾 [Mobile] Đã lưu avatar")
+                            avatar_success = True
+                            if tree_item_id:
+                                app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "✅"))
+                            time.sleep(10)
+
+                            # Nếu có nút Post thì click
+                            try:
+                                post_btn = WebDriverWait(driver, 5).until(
+                                    EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'_a9--') and text()='Post']"))
+                                )
+                                driver.execute_script("arguments[0].click();", post_btn)
+                                log("✅ [Mobile] Đã click Post")
+                                post_shared = True
+                                if tree_item_id:
+                                    app.after(0, lambda: update_tree_column(tree_item_id, "POST", "✅"))
+                                time.sleep(12)
+                            except:
+                                log("ℹ [Mobile] Không thấy nút Post, bỏ qua.")
+                                if tree_item_id:
+                                    app.after(0, lambda: update_tree_column(tree_item_id, "POST", "❌"))
+                        else:
+                            log("❌ [Mobile] Không có ảnh hợp lệ trong thư mục.")
+                            if tree_item_id:
+                                app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "❌"))
+                except Exception as e:
+                    log(f"❌ [Mobile] Lỗi upload avatar: {repr(e)}")
+                    if tree_item_id:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "❌"))
+                        
             except Exception as e:
-                log(f"❌ Lỗi Bước 6: {repr(e)}")
+                log(f"❌ [Mobile] Lỗi Bước 6: {repr(e)}")
+                if tree_item_id:
+                    if not gender_saved:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "GENDER", "❌"))
+                    if not bio_saved:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "BIO", "❌"))
+                    if not avatar_success:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "❌"))
+                    if not post_shared:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "POST", "❌"))
 
             # Quay lại giao diện Desktop
             log("🖥 Quay lại giao diện Desktop...")
@@ -5221,11 +5492,12 @@ def run_mobile(thread_id=None):
         # === BẬT CHẾ ĐỘ CHUYÊN NGHIỆP (Creator -> Personal blog) ===
         pause_event.wait()
         if enable_Chuyen_nghiep.get():
+            professional_success = False
             try:
-                log("💼 Đang bật chế độ chuyên nghiệp (Creator -> Personal blog)...")
+                log("💼 [Mobile] Đang bật chế độ chuyên nghiệp (Creator -> Personal blog)...")
                 driver.get("https://www.instagram.com/accounts/convert_to_professional_account/")
                 WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                time.sleep(4)
+                time.sleep(8)
 
                 # 1) Chọn Creator
                 account_type = pro_type_var.get()
@@ -5238,10 +5510,13 @@ def run_mobile(thread_id=None):
                         EC.element_to_be_clickable((By.ID, selector))
                     )
                     radio.click()
-                    log(f"✅ Đã chọn {account_type}")
+                    log(f"✅ [Mobile] Đã chọn {account_type}")
                     time.sleep(3)
                 except Exception as e:
-                    log(f"⚠️ Không tìm thấy nút chọn {account_type}: {repr(e)}")
+                    log(f"⚠️ [Mobile] Không tìm thấy nút chọn {account_type}: {repr(e)}")
+                    if tree_item_id:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "PROFESSIONAL", "❌"))
+                    raise
 
                 # 2) Nhấn Next qua 2 màn hình giới thiệu
                 for i in range(2):
@@ -5250,10 +5525,10 @@ def run_mobile(thread_id=None):
                             EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Next' or normalize-space()='Tiếp']"))
                         )
                         next_btn.click()
-                        log(f"➡️ Đã nhấn Next {i+1}")
+                        log(f"➡️ [Mobile] Đã nhấn Next {i+1}")
                         time.sleep(1.5)
                     except Exception as e:
-                        log(f"ℹ️ Không tìm thấy Next {i+1}: {repr(e)}")
+                        log(f"ℹ️ [Mobile] Không tìm thấy Next {i+1}: {repr(e)}")
                         break
                 
                 # 3) Tick Show category on profile
@@ -5281,10 +5556,13 @@ def run_mobile(thread_id=None):
                 if cat_code:
                     js = f'document.querySelector(\'input[type="radio"][aria-label="{cat_code}"]\').click();'
                     driver.execute_script(js)
-                    log(f"✅ Đã chọn Category: {category}")
+                    log(f"✅ [Mobile] Đã chọn Category: {category}")
                     time.sleep(3)
                 else:
-                    log(f"⚠️ Không tìm thấy mã category cho {category}")
+                    log(f"⚠️ [Mobile] Không tìm thấy mã category cho {category}")
+                    if tree_item_id:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "PROFESSIONAL", "❌"))
+                    raise Exception(f"Category not found: {category}")
 
                 # 5) Nhấn Done 
                 driver.execute_script("""
@@ -5293,6 +5571,7 @@ def run_mobile(thread_id=None):
                     });
                 """)
                 time.sleep(3)
+                
                 # 6) Xác nhận popup Switch to Professional Account
                 driver.execute_script("""
                     document.querySelectorAll('button').forEach(el => { 
@@ -5302,12 +5581,20 @@ def run_mobile(thread_id=None):
                     });
                 """)
                 time.sleep(15)
+                
                 # 7) Nhấn Done để hoàn thành 
                 driver.execute_script("document.querySelector('button._aswp._aswr._aswu._aswy._asw_._asx2').click()")
                 time.sleep(5)
                 
+                professional_success = True
+                if tree_item_id:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "PROFESSIONAL", "✅"))
+                log("✅ [Mobile] Đã bật chế độ chuyên nghiệp thành công")
+                
             except Exception as e:
-                log(f"Lỗi khi bật chế độ chuyên nghiệp: {repr(e)}")
+                log(f"❌ [Mobile] Lỗi khi bật chế độ chuyên nghiệp: {repr(e)}")
+                if tree_item_id:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "PROFESSIONAL", "❌"))
 
             # === KẾT THÚC PHIÊN ===
             try:
@@ -5374,7 +5661,7 @@ def run(thread_id=None):
 
         proxy = proxy_entry.get().strip()
 
-        if warp_enabled:
+        if is_warp_mode():
             log("🌐 Đang bật WARP → bỏ qua proxy.")
         else:
             if proxy:
@@ -5409,7 +5696,7 @@ def run(thread_id=None):
             is_headless = False
 
         # ✅ nếu có proxy thì thêm (giữ lại logic cũ)
-        if proxy and not warp_enabled:
+        if proxy and not is_warp_mode():
             options.add_argument(f"--proxy-server=http://{proxy}")
 
         # ✅ nếu có chrome_path thì dùng binary_location (giống V3-Mobile)
@@ -5520,7 +5807,7 @@ def run(thread_id=None):
                 log(f"❌ Không chuyển sang màn chọn ngày sinh sau khi Next. Lỗi: {repr(e)}")
                 log("🔁 Đóng phiên và restart lại từ đầu...")
                 try:
-                    if warp_enabled:
+                    if is_warp_mode():
                         warp_off()
                     time.sleep(2)
                     release_position(driver)
@@ -5568,7 +5855,7 @@ def run(thread_id=None):
                 log(f"❌ Không chuyển sang màn điền code sau khi chọn ngày sinh. Lỗi: {repr(e)}")
                 log("🔁 Đóng phiên và restart lại từ đầu...")
                 try:
-                    if warp_enabled:
+                    if is_warp_mode():
                         warp_off()
                     time.sleep(2)
                     release_position(driver)
@@ -5675,7 +5962,7 @@ def run(thread_id=None):
                 )
                 type_text_slowly(code_input, code, delay=0.3)
                 log(f"✅ Đã nhập mã xác minh: {code}")
-                if warp_enabled:
+                if is_warp_mode():
                     warp_change_ip()
                 time.sleep(8)
                 # Nhấn nút Next nhiều lần nếu còn
@@ -5940,17 +6227,14 @@ def run(thread_id=None):
             time.sleep(3)
 
         # === Insert vào Treeview ===
+        tree_item_id = None
         try:
             status_tag = "LIVE" if status_text.lower() == "live" else "DIE"
             phone_val = locals().get("phone", "")
             token_val = locals().get("token", "")
 
-            tree.insert("", "end", values=(
-                len(tree.get_children())+1, status_text, username, password, email, phone_val, cookie_str,
-                locals().get("two_fa_code", ""), token_val, "127.0.0.1", "NoProxy",
-                "LIVE" if status_tag=="LIVE" else "",
-                "DIE" if status_tag=="DIE" else ""
-            ), tags=(status_tag,))
+            tree_item_id = insert_to_tree(status_text, username, password, email, cookie_str, locals().get("two_fa_code", ""))
+            log(f"✅ [Desktop] Đã thêm vào TreeView với ID: {tree_item_id}")
         except Exception as e:
             log(f"⚠️ Không thể thêm vào Treeview: {repr(e)}")
 
@@ -5978,9 +6262,10 @@ def run(thread_id=None):
 
         # === BƯỚC 5: Follow ===
         if follow_var.get():
+            followed_count = 0
             try:
                 pause_event.wait()
-                log("🚀 Bắt đầu follow các link...")
+                log("🚀 [Desktop] Bắt đầu follow các link...")
                 time.sleep(3)
 
                 follow_links = [
@@ -5996,9 +6281,9 @@ def run(thread_id=None):
                     "https://www.instagram.com/ngockem_/",
                 ]
 
-                # Lấy số lượng follow từ ô nhập
+                # Lấy số lượng follow từ ô nhập Desktop
                 try:
-                    num_follow = int(follow_count_entry.get())
+                    num_follow = int(desktop_follow_count_entry.get())
                 except:
                     num_follow = 5
                 num_follow = min(num_follow, len(follow_links))  
@@ -6008,17 +6293,25 @@ def run(thread_id=None):
                 for link in selected_links:
                     try:
                         driver.get(link)
-                        log(f"🌐 Đã mở link: {link}")
+                        log(f"🌐 [Desktop] Đã mở link: {link}")
                         time.sleep(5)
 
                         follow_button = WebDriverWait(driver, 10).until(
                             EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Follow']"))
                         )
                         follow_button.click()
-                        log(f"✅ Đã follow: {link}")
+                        followed_count += 1
+                        log(f"✅ [Desktop] Đã follow: {link}")
+                        
+                        # Update FOLLOW column
+                        if tree_item_id:
+                            follow_status = f"{followed_count}/{num_follow}"
+                            app.after(0, lambda s=follow_status: update_tree_column(tree_item_id, "FOLLOW", s))
+                            log(f"📊 [Desktop] Cập nhật FOLLOW: {follow_status}")
+                        
                         time.sleep(6)
                     except Exception as e:
-                        log(f"❌ Không thể follow {link}: {repr(e)}")
+                        log(f"❌ [Desktop] Không thể follow {link}: {repr(e)}")
 
             except Exception as e:
                 log(f"❌ Lỗi trong quá trình follow: {repr(e)}")
@@ -6028,11 +6321,16 @@ def run(thread_id=None):
 
         # === BƯỚC 6: Upload avatar ở giao diện mobile ===
         if bioava_var.get():
-            if warp_enabled:
+            if is_warp_mode():
                 warp_off()
                 time.sleep(4)
+        
+        avatar_success = False
+        gender_saved = False
+        bio_saved = False
+        post_shared = False
         try:
-            log("📱 Chuyển sang giao diện Mobile (iPhone 15 Pro Max)...")
+            log("📱 [Desktop] Chuyển sang giao diện Mobile (iPhone 15 Pro Max)...")
             driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
                 "mobile": True,
                 "width": 390,
@@ -6054,7 +6352,7 @@ def run(thread_id=None):
             time.sleep(3)
 
             # Mở trang chỉnh sửa hồ sơ
-            log("👤 Mở trang chỉnh sửa hồ sơ để upload avatar...")
+            log("👤 [Desktop] Mở trang chỉnh sửa hồ sơ để upload avatar...")
             driver.get("https://www.instagram.com/accounts/edit/")
             WebDriverWait(driver, 15).until(
                 EC.presence_of_element_located((By.XPATH, "//input[@accept='image/jpeg,image/png']"))
@@ -6077,40 +6375,54 @@ def run(thread_id=None):
                 }
                 """)
             time.sleep(3)
+            
             # Chọn female
-            driver.execute_script("""
-                const femaleOption = document.evaluate(
-                    "//span[normalize-space(text())='Female']",
-                    document,
-                    null,
-                    XPathResult.FIRST_ORDERED_NODE_TYPE,
-                    null
-                ).singleNodeValue;
-                if (femaleOption) {
-                    femaleOption.click();
-                } else {
-                    console.warn("❌ Không tìm thấy option 'Female'");
-                }
-                """)
-            time.sleep(3)
+            try:
+                driver.execute_script("""
+                    const femaleOption = document.evaluate(
+                        "//span[normalize-space(text())='Female']",
+                        document,
+                        null,
+                        XPathResult.FIRST_ORDERED_NODE_TYPE,
+                        null
+                    ).singleNodeValue;
+                    if (femaleOption) {
+                        femaleOption.click();
+                    } else {
+                        console.warn("❌ Không tìm thấy option 'Female'");
+                    }
+                    """)
+                time.sleep(3)
+                gender_saved = True
+                if tree_item_id:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "GENDER", "✅"))
+                    log("✅ [Desktop] Đã chọn Gender: Female")
+            except Exception as e:
+                if tree_item_id:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "GENDER", "❌"))
+                log(f"❌ [Desktop] Lỗi chọn Gender: {repr(e)}")
 
             # Điền Bio (theo lựa chọn GUI) — chuẩn React (setNativeValue + input/change)
-            bio_value = get_bio_text()
-            driver.execute_script("""
-            (function(val){
-                const el = document.querySelector("textarea[name='biography'], #pepBio, textarea[aria-label='Bio'], textarea[aria-label='Tiểu sử']");
-                if (!el) { console.warn("❌ Không tìm thấy ô Bio (#pepBio/biography)"); return; }
-                const proto  = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-                const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-                if (setter) setter.call(el, val); else el.value = val;  // fallback
-                el.dispatchEvent(new Event('input',  {bubbles:true}));
-                el.dispatchEvent(new Event('change', {bubbles:true}));
-                el.blur();
-                console.log("✍️ Đã điền Bio:", val);
-            })(arguments[0]);
-            """, bio_value)
-            log(f"✍️ Đã điền Bio: {bio_value}")
-            time.sleep(1.5)
+            try:
+                bio_value = get_bio_text()
+                driver.execute_script("""
+                (function(val){
+                    const el = document.querySelector("textarea[name='biography'], #pepBio, textarea[aria-label='Bio'], textarea[aria-label='Tiểu sử']");
+                    if (!el) { console.warn("❌ Không tìm thấy ô Bio (#pepBio/biography)"); return; }
+                    const proto  = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+                    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                    if (setter) setter.call(el, val); else el.value = val;  // fallback
+                    el.dispatchEvent(new Event('input',  {bubbles:true}));
+                    el.dispatchEvent(new Event('change', {bubbles:true}));
+                    el.blur();
+                    console.log("✍️ Đã điền Bio:", val);
+                })(arguments[0]);
+                """, bio_value)
+                log(f"✍️ [Desktop] Đã điền Bio: {bio_value}")
+                time.sleep(1.5)
+                bio_saved = True
+            except Exception as e:
+                log(f"❌ [Desktop] Lỗi điền Bio: {repr(e)}")
 
             # Nhấn Submit
             driver.execute_script("""
@@ -6130,38 +6442,75 @@ def run(thread_id=None):
             })();
             """)
             time.sleep(2)
+            
+            # Update BIO column
+            if tree_item_id:
+                if bio_saved:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "BIO", "✅"))
+                    log("✅ [Desktop] Bio đã lưu thành công")
+                else:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "BIO", "❌"))
+                    log("❌ [Desktop] Bio lưu thất bại")
 
             # Lấy ảnh và upload
-            if not ava_folder_path or not os.path.exists(ava_folder_path):
-                log("❌ Chưa chọn thư mục ảnh hoặc thư mục không tồn tại.")
-            else:
-                image_files = [f for f in os.listdir(ava_folder_path) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
-                if image_files:
-                    selected_path = os.path.join(ava_folder_path, random.choice(image_files))
-                    driver.find_element(By.XPATH, "//input[@accept='image/jpeg,image/png']").send_keys(selected_path)
-                    log(f"✅ Đã upload avatar: {os.path.basename(selected_path)}")
-                    time.sleep(3)
-                    # Lưu avatar
-                    WebDriverWait(driver, 15).until(
-                        EC.element_to_be_clickable((By.XPATH, "//button[text()='Save']"))
-                    ).click()
-                    log("💾 Đã lưu avatar")
-                    time.sleep(10)
-
-                    # Nếu có nút Post thì click
-                    try:
-                        post_btn = WebDriverWait(driver, 5).until(
-                            EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'_a9--') and text()='Post']"))
-                        )
-                        driver.execute_script("arguments[0].click();", post_btn)
-                        log("✅ Đã click Post")
-                        time.sleep(12)
-                    except:
-                        log("ℹ Không thấy nút Post, bỏ qua.")
+            try:
+                if not ava_folder_path or not os.path.exists(ava_folder_path):
+                    log("❌ [Desktop] Chưa chọn thư mục ảnh hoặc thư mục không tồn tại.")
+                    if tree_item_id:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "❌"))
                 else:
-                    log("❌ Không có ảnh hợp lệ trong thư mục.")
+                    image_files = [f for f in os.listdir(ava_folder_path) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+                    if image_files:
+                        selected_path = os.path.join(ava_folder_path, random.choice(image_files))
+                        driver.find_element(By.XPATH, "//input[@accept='image/jpeg,image/png']").send_keys(selected_path)
+                        log(f"✅ [Desktop] Đã upload avatar: {os.path.basename(selected_path)}")
+                        time.sleep(3)
+                        
+                        # Lưu avatar
+                        WebDriverWait(driver, 15).until(
+                            EC.element_to_be_clickable((By.XPATH, "//button[text()='Save']"))
+                        ).click()
+                        log("💾 [Desktop] Đã lưu avatar")
+                        avatar_success = True
+                        if tree_item_id:
+                            app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "✅"))
+                        time.sleep(12)
+
+                        # Nếu có nút Post thì click
+                        try:
+                            post_btn = WebDriverWait(driver, 5).until(
+                                EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'_a9--') and text()='Post']"))
+                            )
+                            driver.execute_script("arguments[0].click();", post_btn)
+                            log("✅ [Desktop] Đã click Post")
+                            post_shared = True
+                            if tree_item_id:
+                                app.after(0, lambda: update_tree_column(tree_item_id, "POST", "✅"))
+                            time.sleep(12)
+                        except:
+                            log("ℹ [Desktop] Không thấy nút Post, bỏ qua.")
+                            if tree_item_id:
+                                app.after(0, lambda: update_tree_column(tree_item_id, "POST", "❌"))
+                    else:
+                        log("❌ [Desktop] Không có ảnh hợp lệ trong thư mục.")
+                        if tree_item_id:
+                            app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "❌"))
+            except Exception as e:
+                log(f"❌ [Desktop] Lỗi upload avatar: {repr(e)}")
+                if tree_item_id:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "❌"))
+                    
         except Exception as e:
-            log(f"❌ Lỗi Bước 6: {repr(e)}")
+            log(f"❌ [Desktop] Lỗi Bước 6: {repr(e)}")
+            if tree_item_id:
+                if not gender_saved:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "GENDER", "❌"))
+                if not bio_saved:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "BIO", "❌"))
+                if not avatar_success:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "❌"))
+                if not post_shared:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "POST", "❌"))
 
         # Quay lại giao diện Desktop
         log("🖥 Quay lại giao diện Desktop...")
@@ -6174,12 +6523,13 @@ def run(thread_id=None):
 
         # === BẬT CHẾ ĐỘ CHUYÊN NGHIỆP (Creator -> Personal blog) ===
         if pro_mode_var.get():
+            professional_success = False
             try:
                 pause_event.wait()
-                log("💼 Đang bật chế độ chuyên nghiệp (Creator -> Personal blog)...")
+                log("💼 [Desktop] Đang bật chế độ chuyên nghiệp (Creator -> Personal blog)...")
                 driver.get("https://www.instagram.com/accounts/convert_to_professional_account/")
                 WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                time.sleep(4)
+                time.sleep(8)
 
                 # 1) Chọn Creator
                 account_type = pro_type_var.get()
@@ -6192,10 +6542,13 @@ def run(thread_id=None):
                         EC.element_to_be_clickable((By.ID, selector))
                     )
                     radio.click()
-                    log(f"✅ Đã chọn {account_type}")
+                    log(f"✅ [Desktop] Đã chọn {account_type}")
                     time.sleep(3)
                 except Exception as e:
-                    log(f"⚠️ Không tìm thấy nút chọn {account_type}: {repr(e)}")
+                    log(f"⚠️ [Desktop] Không tìm thấy nút chọn {account_type}: {repr(e)}")
+                    if tree_item_id:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "PROFESSIONAL", "❌"))
+                    raise
 
                 # 2) Nhấn Next qua 2 màn hình giới thiệu
                 for i in range(2):
@@ -6204,10 +6557,10 @@ def run(thread_id=None):
                             EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Next' or normalize-space()='Tiếp']"))
                         )
                         next_btn.click()
-                        log(f"➡️ Đã nhấn Next {i+1}")
+                        log(f"➡️ [Desktop] Đã nhấn Next {i+1}")
                         time.sleep(1.5)
                     except Exception as e:
-                        log(f"ℹ️ Không tìm thấy Next {i+1}: {repr(e)}")
+                        log(f"ℹ️ [Desktop] Không tìm thấy Next {i+1}: {repr(e)}")
                         break
                 
                 # 3) Tick Show category on profile
@@ -6235,10 +6588,13 @@ def run(thread_id=None):
                 if cat_code:
                     js = f'document.querySelector(\'input[type="radio"][aria-label="{cat_code}"]\').click();'
                     driver.execute_script(js)
-                    log(f"✅ Đã chọn Category: {category}")
+                    log(f"✅ [Desktop] Đã chọn Category: {category}")
                     time.sleep(3)
                 else:
-                    log(f"⚠️ Không tìm thấy mã category cho {category}")
+                    log(f"⚠️ [Desktop] Không tìm thấy mã category cho {category}")
+                    if tree_item_id:
+                        app.after(0, lambda: update_tree_column(tree_item_id, "PROFESSIONAL", "❌"))
+                    raise Exception(f"Category not found: {category}")
 
                 # 5) Nhấn Done 
                 driver.execute_script("""
@@ -6247,6 +6603,7 @@ def run(thread_id=None):
                     });
                 """)
                 time.sleep(3)
+                
                 # 6) Xác nhận popup Switch to Professional Account
                 driver.execute_script("""
                     document.querySelectorAll('button').forEach(el => { 
@@ -6256,16 +6613,24 @@ def run(thread_id=None):
                     });
                 """)
                 time.sleep(15)
+                
                 # 7) Nhấn Done để hoàn thành 
                 driver.execute_script("document.querySelector('button._aswp._aswr._aswu._aswy._asw_._asx2').click()")
                 time.sleep(5)
                 
+                professional_success = True
+                if tree_item_id:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "PROFESSIONAL", "✅"))
+                log("✅ [Desktop] Đã bật chế độ chuyên nghiệp thành công")
+                
             except Exception as e:
-                log(f"Lỗi khi bật chế độ chuyên nghiệp: {repr(e)}")
+                log(f"❌ [Desktop] Lỗi khi bật chế độ chuyên nghiệp: {repr(e)}")
+                if tree_item_id:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "PROFESSIONAL", "❌"))
 
             # === KẾT THÚC PHIÊN ===
             try:
-                if warp_enabled:
+                if is_warp_mode():
                     warp_off()
                     time.sleep(2)
                 release_position(driver)       # ✅ trả chỗ
@@ -6337,7 +6702,7 @@ def show_intro(app, main_func):
 app = tk.Tk()
 app.withdraw() 
 app.title("Instagram Auto Creator")
-app.geometry("1100x920")
+app.geometry("1150x830")
 app.resizable(True, True)
 
 # --- Biến đếm Live/Die/Rate ---
@@ -6367,26 +6732,14 @@ def select_warp_controller():
     return warp_controller_path
 
 def save_warp_controller_path(path):
-    """Lưu đường dẫn WARP Controller vào config.ini"""
-    config = configparser.ConfigParser()
-    config_file = "config.ini"
-    if os.path.exists(config_file):
-        config.read(config_file, encoding="utf-8")
-    if "Paths" not in config:
-        config["Paths"] = {}
-    config["Paths"]["warp_controller_path"] = path
-    with open(config_file, "w", encoding="utf-8") as f:
-        config.write(f)
+    """Lưu đường dẫn WARP Controller vào config.json"""
+    global warp_controller_path
+    warp_controller_path = path
+    save_config()
 
 def load_warp_controller_path():
-    """Load đường dẫn WARP Controller từ config.ini"""
-    config = configparser.ConfigParser()
-    config_file = "config.ini"
-    if os.path.exists(config_file):
-        config.read(config_file, encoding="utf-8")
-        if "Paths" in config and "warp_controller_path" in config["Paths"]:
-            return config["Paths"]["warp_controller_path"]
-    return ""
+    """Load đường dẫn WARP Controller từ config.json"""
+    return globals().get("warp_controller_path", "")
 
 def open_warp_controller():
     """Mở WARP Controller nếu chưa mở"""
@@ -6473,6 +6826,8 @@ def switch_tab(tab_name):
     checklive_content.place_forget()
     history_content.place_forget()
     guide_content.place_forget()
+    utilities_content.place_forget()
+    menu_content.place_forget()
     
     # Hiện tab được chọn
     if tab_name == "INSTAGRAM":
@@ -6483,27 +6838,42 @@ def switch_tab(tab_name):
         history_content.place(x=150, y=50, relwidth=1, width=-150, relheight=1, height=-50)
     elif tab_name == "GUIDE":
         guide_content.place(x=150, y=50, relwidth=1, width=-150, relheight=1, height=-50)
+    elif tab_name == "UTILITIES":
+        utilities_content.place(x=150, y=50, relwidth=1, width=-150, relheight=1, height=-50)
+    elif tab_name == "MENU":
+        menu_content.place(x=150, y=50, relwidth=1, width=-150, relheight=1, height=-50)
 
-# Frame chứa 4 nút để center theo chiều dọc
+# Frame chứa các nút chính ở trên
 buttons_container = tk.Frame(left_menu, bg="black")
-buttons_container.place(relx=0.5, rely=0.5, anchor="center")
+buttons_container.place(relx=0.5, rely=0.35, anchor="center")
 
-# 4 nút menu
+# 5 nút menu chính với khoảng cách nhỏ hơn
 tk.Button(buttons_container, text="INSTAGRAM", bg="black", fg="white", font=menu_font,
           command=lambda: switch_tab("INSTAGRAM"), bd=0, activebackground="#333", 
-          activeforeground="white", width=15, height=2).pack(pady=15, padx=10)
+          activeforeground="white", width=15, height=2).pack(pady=5, padx=10)
 
 tk.Button(buttons_container, text="CHECK LIVE", bg="black", fg="white", font=menu_font,
           command=lambda: switch_tab("CHECK LIVE"), bd=0, activebackground="#333", 
-          activeforeground="white", width=15, height=2).pack(pady=15, padx=10)
+          activeforeground="white", width=15, height=2).pack(pady=5, padx=10)
 
 tk.Button(buttons_container, text="HISTORY", bg="black", fg="white", font=menu_font,
           command=lambda: switch_tab("HISTORY"), bd=0, activebackground="#333", 
-          activeforeground="white", width=15, height=2).pack(pady=15, padx=10)
+          activeforeground="white", width=15, height=2).pack(pady=5, padx=10)
 
 tk.Button(buttons_container, text="GUIDE", bg="black", fg="white", font=menu_font,
           command=lambda: switch_tab("GUIDE"), bd=0, activebackground="#333", 
-          activeforeground="white", width=15, height=2).pack(pady=15, padx=10)
+          activeforeground="white", width=15, height=2).pack(pady=5, padx=10)
+
+tk.Button(buttons_container, text="UTILITIES", bg="black", fg="white", font=menu_font,
+          command=lambda: switch_tab("UTILITIES"), bd=0, activebackground="#333", 
+          activeforeground="white", width=15, height=2).pack(pady=5, padx=10)
+
+# Nút MENU ở dưới cùng (position cố định)
+menu_button = tk.Button(left_menu, text="MENU", bg="#1a1a1a", fg="white", 
+                        font=("ROG Fonts STRIX SCAR", 12, "bold"),
+                        command=lambda: switch_tab("MENU"), bd=0, activebackground="#333", 
+                        activeforeground="white", width=13, height=2)
+menu_button.place(relx=0.5, rely=0.92, anchor="center")
 
 # ========================= TAB CONTENTS =========================
 
@@ -6527,7 +6897,7 @@ def calculate_settings_hash():
     settings_str = f"{mode}|"
     
     if mode == "desktop":
-        settings_str += f"{save_format}|{threads_entry.get()}|{follow_count_entry.get()}|{proxy_entry.get()}|"
+        settings_str += f"{save_format}|{threads_entry.get()}|{desktop_follow_count_entry.get()}|{proxy_entry.get()}|"
         settings_str += f"{mail_var.get()}|{follow_var.get()}|{bioava_var.get()}|{pro_mode_var.get()}|{twofa_var.get()}|"
         settings_str += f"{category_var.get()}|{pro_type_var.get()}|{network_mode_var.get()}"
     elif mode == "mobile":
@@ -6576,7 +6946,7 @@ def check_settings_changed():
 
 # ===== HÀNG 1: RESTART | START | FILE REG =====
 row1 = tk.Frame(left_frame, bg="white")
-row1.pack(pady=3, fill="x")
+row1.pack(pady=(8,4), anchor="center")
 
 def safe_start_process():
     """Wrapper cho start_process với kiểm tra save"""
@@ -6595,23 +6965,23 @@ def safe_start_process():
     # Nếu đã save và không thay đổi, cho phép start
     start_process()
 
-tk.Button(row1, text="RESTART", width=15, bg="black", fg="white", font=rog_font, 
-          command=restart_tool).pack(side="left", padx=3)
-tk.Button(row1, text="START", width=15, bg="black", fg="white", font=rog_font, 
-          command=safe_start_process).pack(side="left", padx=3)
-tk.Button(row1, text="FILE REG", width=15, bg="black", fg="white", font=rog_font, 
-          command=open_file_da_reg).pack(side="left", padx=3)
+tk.Button(row1, text="RESTART", width=18, height=1, bg="black", fg="white", font=rog_font, 
+          command=restart_tool).pack(side="left", padx=4)
+tk.Button(row1, text="START", width=18, height=1, bg="black", fg="white", font=rog_font, 
+          command=safe_start_process).pack(side="left", padx=4)
+tk.Button(row1, text="FILE REG", width=18, height=1, bg="black", fg="white", font=rog_font, 
+          command=open_file_da_reg).pack(side="left", padx=4)
 
 # ===== HÀNG 2: CHOOSE AVATAR | SAVE | CHOOSE CHROME =====
 row2 = tk.Frame(left_frame, bg="white")
-row2.pack(pady=3, fill="x")
+row2.pack(pady=4, anchor="center")
 
-tk.Button(row2, text="CHOOSE AVATAR", width=15, bg="black", fg="white", font=rog_font, 
-          command=select_ava_folder).pack(side="left", padx=3)
-tk.Button(row2, text="SAVE", width=15, bg="black", fg="white", font=rog_font, 
-          command=save_settings).pack(side="left", padx=3)
-tk.Button(row2, text="CHOOSE CHROME", width=15, bg="black", fg="white", font=rog_font, 
-          command=select_chrome).pack(side="left", padx=3)
+tk.Button(row2, text="CHOOSE AVATAR", width=18, height=1, bg="black", fg="white", font=rog_font, 
+          command=select_ava_folder).pack(side="left", padx=4)
+tk.Button(row2, text="SAVE", width=18, height=1, bg="black", fg="white", font=rog_font, 
+          command=save_settings).pack(side="left", padx=4)
+tk.Button(row2, text="CHOOSE CHROME", width=18, height=1, bg="black", fg="white", font=rog_font, 
+          command=select_chrome).pack(side="left", padx=4)
 
 # ===== HÀNG 3: Đã xóa WARP ON (chuyển xuống Desktop Settings) =====
 row3 = tk.Frame(left_frame, bg="white")
@@ -6629,66 +6999,52 @@ def set_ui_mode(mode):
 
 giao_dien_frame = tk.LabelFrame(left_frame, text="GIAO DIỆN", bg="white", 
                                  font=("ROG Fonts STRIX SCAR", 11, "bold"), bd=2, relief="solid")
-giao_dien_frame.pack(pady=(10,5), fill="x")
+giao_dien_frame.pack(pady=(10,8), fill="x", padx=5)
 
 # 3 nút giao diện xếp ngang
 btn_container = tk.Frame(giao_dien_frame, bg="white")
-btn_container.pack(pady=5, padx=5, fill="x")
+btn_container.pack(pady=8, padx=8, anchor="center")
 
-tk.Button(btn_container, text="DESKTOP", width=15, bg="black", fg="white", font=rog_font,
-          command=lambda: set_ui_mode("desktop")).pack(side="left", padx=3)
+tk.Button(btn_container, text="DESKTOP", width=18, height=1, bg="black", fg="white", font=rog_font,
+          command=lambda: set_ui_mode("desktop")).pack(side="left", padx=5)
 
-tk.Button(btn_container, text="MOBILE", width=18, bg="black", fg="white", font=rog_font,
-          command=lambda: set_ui_mode("mobile")).pack(side="left", padx=3)
+tk.Button(btn_container, text="MOBILE", width=18, height=1, bg="black", fg="white", font=rog_font,
+          command=lambda: set_ui_mode("mobile")).pack(side="left", padx=5)
 
-tk.Button(btn_container, text="PHONE (ANDROID)", width=18, bg="black", fg="white", font=rog_font,
-          command=lambda: set_ui_mode("phone")).pack(side="left", padx=3)
+tk.Button(btn_container, text="PHONE", width=18, height=1, bg="black", fg="white", font=rog_font,
+          command=lambda: set_ui_mode("phone")).pack(side="left", padx=5)
 
 # ================================================================= ẢNH & CHROME ===============================================================
-CONFIG_INI = "config.ini"
 
-def save_ava_folder_to_ini(path):
-    config = configparser.ConfigParser()
-    if os.path.exists(CONFIG_INI):
-        config.read(CONFIG_INI, encoding="utf-8")
-    if "Paths" not in config:
-        config["Paths"] = {}
-    config["Paths"]["ava_folder_path"] = path
-    with open(CONFIG_INI, "w", encoding="utf-8") as f:
-        config.write(f)
+def save_ava_folder_to_config(path):
+    """Lưu đường dẫn thư mục ảnh vào config.json"""
+    global ava_folder_path
+    ava_folder_path = path
+    save_config()
 
-def load_ava_folder_from_ini():
-    config = configparser.ConfigParser()
-    if os.path.exists(CONFIG_INI):
-        config.read(CONFIG_INI, encoding="utf-8")
-        return config.get("Paths", "ava_folder_path", fallback="")
-    return ""
+def load_ava_folder_from_config():
+    """Load đường dẫn thư mục ảnh từ config.json"""
+    return globals().get("ava_folder_path", "")
 
 def select_ava_folder():
     global ava_folder_path
     folder = filedialog.askdirectory(title="Chọn thư mục ảnh avatar")
     if folder:
         ava_folder_path = folder
-        save_ava_folder_to_ini(folder)
+        save_ava_folder_to_config(folder)
         log(f"✅ Đã chọn thư mục ảnh: {ava_folder_path}")
 
-# Khi khởi động, load lại từ ini:
-ava_folder_path = load_ava_folder_from_ini()
+# Khi khởi động, load lại từ config.json:
+ava_folder_path = load_ava_folder_from_config()
 
 # ========================= KHỐI GIỮA: Desktop Settings =========================
 desktop_settings = tk.LabelFrame(instagram_content, text="Desktop Settings", bg="white", font=("ROG Fonts STRIX SCAR", 11, "bold"))
 hidden_chrome_var = tk.BooleanVar(value=False)
 
 def _position_desktop_settings():
-    """Đặt Desktop Settings bên dưới khung GIAO DIỆN."""
+    """Đặt Desktop Settings ở vị trí cố định giữa giao diện."""
     instagram_content.update_idletasks()
-    try:
-        # Tính vị trí: bên dưới khung GIAO DIỆN
-        x = left_frame.winfo_x()
-        y = left_frame.winfo_y() + left_frame.winfo_height() + 10
-        desktop_settings.place(x=x, y=y)
-    except:
-        desktop_settings.place(x=20, y=250)
+    desktop_settings.place(relx=0.5, y=250, anchor="n")
 
 # app.after(60, _position_desktop_settings)  # ẨN khi mở app
 
@@ -6726,15 +7082,15 @@ for i in range(5):
 row_threads = tk.Frame(desktop_settings, bg="white")
 row_threads.pack(fill="x", padx=6, pady=2)
 
-tk.Label(row_threads, text="SỐ LUỒNG", bg="white", font=rog_font_small).pack(side="left", padx=(0,2))
+tk.Label(row_threads, text="NUMBER THREAD", bg="white", font=rog_font_small).pack(side="left", padx=(0,2))
 threads_entry = tk.Entry(row_threads, width=6, justify="center")
 threads_entry.insert(0, "1")
 threads_entry.pack(side="left", padx=2)
 
-tk.Label(row_threads, text="SỐ FOLLOW", bg="white", font=rog_font_small).pack(side="left", padx=(10,2))
-follow_count_entry = tk.Entry(row_threads, width=6, justify="center")
-follow_count_entry.insert(0, "5")
-follow_count_entry.pack(side="left", padx=2)
+tk.Label(row_threads, text="FOLLOW COUNT", bg="white", font=rog_font_small).pack(side="left", padx=(10,2))
+desktop_follow_count_entry = tk.Entry(row_threads, width=6, justify="center")
+desktop_follow_count_entry.insert(0, "5")
+desktop_follow_count_entry.pack(side="left", padx=2)
 
 tk.Label(row_threads, text="Proxy (IP:PORT)", bg="white", font=rog_font_small).pack(side="left", padx=(10,2))
 proxy_entry = tk.Entry(row_threads, width=18, bg="lightgray", justify="center")
@@ -6830,100 +7186,22 @@ chrome_size_frame.pack(fill="x", pady=2)
 row_wh = tk.Frame(chrome_size_frame, bg="white")
 row_wh.pack(anchor="w", pady=1)
 tk.Label(row_wh, text="W:", bg="white").pack(side="left", padx=2)
-entry_width = tk.Entry(row_wh, width=6, justify="center")
-entry_width.insert(0, "1200")
-entry_width.pack(side="left", padx=2)
+desktop_entry_width = tk.Entry(row_wh, width=6, justify="center")
+desktop_entry_width.insert(0, "1200")
+desktop_entry_width.pack(side="left", padx=2)
 tk.Label(row_wh, text="H:", bg="white").pack(side="left", padx=2)
-entry_height = tk.Entry(row_wh, width=6, justify="center")
-entry_height.insert(0, "800")
-entry_height.pack(side="left", padx=2)
+desktop_entry_height = tk.Entry(row_wh, width=6, justify="center")
+desktop_entry_height.insert(0, "800")
+desktop_entry_height.pack(side="left", padx=2)
 
 row_scale = tk.Frame(chrome_size_frame, bg="white")
 row_scale.pack(anchor="w", pady=1)
 tk.Label(row_scale, text="Scale(%):", bg="white").pack(side="left", padx=2)
-entry_scale = tk.Entry(row_scale, width=6, justify="center")
-entry_scale.insert(0, "100")
-entry_scale.pack(side="left", padx=2)
+desktop_entry_scale = tk.Entry(row_scale, width=6, justify="center")
+desktop_entry_scale.insert(0, "100")
+desktop_entry_scale.pack(side="left", padx=2)
 
 tk.Checkbutton(col_chrome, text="Ẩn Chrome (Headless)", variable=hidden_chrome_var, bg="white").pack(anchor="w", pady=2)
-
-# HÀNG 6: STEP REG (3 bước delay xếp ngang)
-row_step = tk.Frame(desktop_settings, bg="white")
-row_step.pack(fill="x", padx=6, pady=4)
-
-tk.Label(row_step, text="STEP REG:", bg="white", font=rog_font_small).pack(side="left", padx=(0,10))
-
-delay_entries = {}
-
-# BƯỚC 1
-step1 = tk.LabelFrame(row_step, text="BƯỚC 1", bg="white", font=rog_font_tiny, bd=1)
-step1.pack(side="left", padx=4)
-
-hdr1 = tk.Frame(step1, bg="white")
-hdr1.pack(pady=1, fill="x")
-tk.Label(hdr1, text="", bg="white", width=9).pack(side="left")
-tk.Label(hdr1, text="Điền", bg="white", width=4).pack(side="left")
-tk.Label(hdr1, text="Nghỉ", bg="white", width=4).pack(side="left")
-
-for label, type_val, sleep_val in [("Mail:", 0.18, 1), ("Pass:", 0.18, 3), ("Họ Tên:", 0.18, 2), ("Username:", 0.18, 3), ("Next:", None, 2)]:
-    fr = tk.Frame(step1, bg="white")
-    fr.pack(pady=1, fill="x")
-    tk.Label(fr, text=label, bg="white", width=9, anchor="w").pack(side="left")
-    if type_val is not None:
-        e1 = tk.Entry(fr, width=4, justify="center")
-        e1.insert(0, str(type_val))
-        e1.pack(side="left", padx=2)
-        delay_entries[f"{label.strip(':')} _type"] = e1
-    e2 = tk.Entry(fr, width=4, justify="center")
-    e2.insert(0, str(sleep_val))
-    e2.pack(side="left", padx=2)
-    delay_entries[f"{label.strip(':')}_sleep"] = e2
-
-# BƯỚC 2
-step2 = tk.LabelFrame(row_step, text="BƯỚC 2", bg="white", font=rog_font_tiny, bd=1)
-step2.pack(side="left", padx=4)
-
-hdr2 = tk.Frame(step2, bg="white")
-hdr2.pack(pady=1, fill="x")
-tk.Label(hdr2, text="", bg="white", width=9).pack(side="left")
-tk.Label(hdr2, text="Điền", bg="white", width=4).pack(side="left")
-tk.Label(hdr2, text="Nghỉ", bg="white", width=4).pack(side="left")
-
-for label, type_val, sleep_val in [("Tháng:", 0.18, 2), ("Ngày:", 0.18, 2), ("Năm:", 0.18, 2), ("Next:", None, 2)]:
-    fr = tk.Frame(step2, bg="white")
-    fr.pack(pady=1, fill="x")
-    tk.Label(fr, text=label, bg="white", width=9, anchor="w").pack(side="left")
-    if type_val is not None:
-        e1 = tk.Entry(fr, width=4, justify="center")
-        e1.insert(0, str(type_val))
-        e1.pack(side="left", padx=2)
-        delay_entries[f"{label.strip(':')}_type"] = e1
-    e2 = tk.Entry(fr, width=4, justify="center")
-    e2.insert(0, str(sleep_val))
-    e2.pack(side="left", padx=2)
-    delay_entries[f"{label.strip(':')}_sleep"] = e2
-
-# BƯỚC 3
-step3 = tk.LabelFrame(row_step, text="BƯỚC 3", bg="white", font=rog_font_tiny, bd=1)
-step3.pack(side="left", padx=4)
-
-hdr3 = tk.Frame(step3, bg="white")
-hdr3.pack(pady=1, fill="x")
-tk.Label(hdr3, text="", bg="white", width=9).pack(side="left")
-tk.Label(hdr3, text="Điền", bg="white", width=4).pack(side="left")
-tk.Label(hdr3, text="Nghỉ", bg="white", width=4).pack(side="left")
-
-fr = tk.Frame(step3, bg="white")
-fr.pack(pady=1, fill="x")
-tk.Label(fr, text="Điền code:", bg="white", width=9, anchor="w").pack(side="left")
-e1 = tk.Entry(fr, width=4, justify="center")
-e1.insert(0, "0.3")
-e1.pack(side="left", padx=2)
-delay_entries["Điền code_type"] = e1
-e2 = tk.Entry(fr, width=4, justify="center")
-e2.insert(0, "2")
-e2.pack(side="left", padx=2)
-delay_entries["Điền code_sleep"] = e2
 
 # HÀNG 7: NETWORK MODE (RadioButton: WIFI | WARP | WARP-SPIN | PROXY)
 row_network = tk.Frame(desktop_settings, bg="white")
@@ -6952,15 +7230,9 @@ tk.Button(row_network, text="📁 WARP Controller", bg="black", fg="white",
 mobile_settings = tk.LabelFrame(instagram_content, text="Mobile Settings", bg="white", font=("ROG Fonts STRIX SCAR", 11, "bold"))
 
 def _position_mobile_settings():
-    """Đặt Mobile Settings bên dưới khung GIAO DIỆN."""
+    """Đặt Mobile Settings ở vị trí cố định giữa giao diện (giống Desktop)."""
     instagram_content.update_idletasks()
-    try:
-        # Tính vị trí: bên dưới khung GIAO DIỆN (giống Desktop)
-        x = left_frame.winfo_x()
-        y = left_frame.winfo_y() + left_frame.winfo_height() + 10
-        mobile_settings.place(x=x, y=y)
-    except Exception:
-        mobile_settings.place(x=20, y=250)
+    mobile_settings.place(relx=0.5, y=250, anchor="n")
 
 # app.after(120, _position_mobile_settings)  # ẨN khi mở app
 
@@ -6973,10 +7245,10 @@ def _get_str(v, fallback=""):
     try: return str(v.get())
     except: return fallback
 
-_follow_def   = _get_bool(globals().get("follow_var", None), False)
-_fullpack_def = _get_bool(globals().get("gender_bio_ava_post_var", None), False)
-_pro_mode_def = _get_bool(globals().get("pro_mode_var", None), False)
-_twofa_def    = _get_bool(globals().get("twofa_var", None), False)
+_follow_def   = _get_bool(globals().get("follow_var", None), True)
+_fullpack_def = _get_bool(globals().get("gender_bio_ava_post_var", None), True)
+_pro_mode_def = _get_bool(globals().get("pro_mode_var", None), True)
+_twofa_def    = _get_bool(globals().get("twofa_var", None), True)
 
 _pro_type_def = _get_str(globals().get("pro_type_var", None), "Creator")
 _category_def = _get_str(globals().get("category_var", None), "Personal blog")
@@ -7002,7 +7274,7 @@ mobile_format_boxes = []
 mail_mobile_var = tk.StringVar(value="temp")
 proxy_mobile_entry = None
 threads_entry = None
-follow_count_entry = None
+mobile_follow_count_entry = None
 entry_width_m = None
 entry_height_m = None
 entry_scale_m = None
@@ -7031,15 +7303,15 @@ for i in range(5):
 row_counts_mobile = tk.Frame(mobile_settings, bg="white")
 row_counts_mobile.pack(fill="x", padx=6, pady=2)
 
-tk.Label(row_counts_mobile, text="SỐ LUỒNG", bg="white", font=rog_font_small).pack(side="left", padx=(0,4))
+tk.Label(row_counts_mobile, text="NUMBER THREAD", bg="white", font=rog_font_small).pack(side="left", padx=(0,4))
 threads_entry = tk.Entry(row_counts_mobile, width=6, justify="center", font=rog_font_tiny)
 threads_entry.insert(0, "1")
 threads_entry.pack(side="left", padx=(0,10))
 
-tk.Label(row_counts_mobile, text="SỐ FOLLOW", bg="white", font=rog_font_small).pack(side="left", padx=(0,4))
-follow_count_entry = tk.Entry(row_counts_mobile, width=6, justify="center", font=rog_font_tiny)
-follow_count_entry.insert(0, "5")
-follow_count_entry.pack(side="left", padx=(0,10))
+tk.Label(row_counts_mobile, text="FOLLOW COUNT", bg="white", font=rog_font_small).pack(side="left", padx=(0,4))
+mobile_follow_count_entry = tk.Entry(row_counts_mobile, width=6, justify="center", font=rog_font_tiny)
+mobile_follow_count_entry.insert(0, "5")
+mobile_follow_count_entry.pack(side="left", padx=(0,10))
 
 tk.Label(row_counts_mobile, text="Proxy (IP:PORT)", bg="white", font=rog_font_small).pack(side="left", padx=(0,4))
 proxy_mobile_entry = tk.Entry(row_counts_mobile, width=20, bg="lightgray", justify="center", font=rog_font_tiny)
@@ -7216,100 +7488,6 @@ def collect_mobile_profile_config():
                      if bio_text_desktop else m_bio_text_mirror.get("1.0", "end").strip())
     }
 
-# HÀNG 6: STEP REG
-row_steps_label = tk.Frame(mobile_settings, bg="white")
-row_steps_label.pack(fill="x", padx=6, pady=(6,2))
-tk.Label(row_steps_label, text="STEP REG:", bg="white", font=rog_font_small).pack(side="left")
-
-# Container cho các bước
-steps_container_mobile = tk.Frame(mobile_settings, bg="white")
-steps_container_mobile.pack(fill="x", padx=6, pady=2)
-
-mobile_delay_entries = {}
-
-# Helper function for creating delay inputs
-def _create_step_frame_mobile(parent, title, fields):
-    frame = tk.LabelFrame(parent, text=title, bg="white", font=rog_font_tiny, relief="solid", borderwidth=1)
-    frame.pack(side="left", padx=2, fill="both", expand=True)
-    
-    # Header
-    header = tk.Frame(frame, bg="white")
-    header.pack(fill="x", padx=2, pady=1)
-    tk.Label(header, text="", bg="white", width=8).pack(side="left")
-    tk.Label(header, text="Điền", bg="white", width=5).pack(side="left")
-    tk.Label(header, text="Nghỉ", bg="white", width=5).pack(side="left")
-    tk.Label(header, text="Next", bg="white", width=5).pack(side="left")
-
-    # Rows
-    for label, type_val, sleep_val, next_val in fields:
-        row = tk.Frame(frame, bg="white")
-        row.pack(fill="x", padx=2, pady=1)
-        
-        tk.Label(row, text=f"{label}:", bg="white", width=8, anchor="w").pack(side="left")
-
-        e_type = tk.Entry(row, width=5, justify="center")
-        e_type.insert(0, str(type_val))
-        e_type.pack(side="left", padx=1)
-        mobile_delay_entries[f"{label}_type"] = e_type
-
-        e_sleep = tk.Entry(row, width=5, justify="center")
-        e_sleep.insert(0, str(sleep_val))
-        e_sleep.pack(side="left", padx=1)
-        mobile_delay_entries[f"{label}_sleep"] = e_sleep
-
-        e_next = tk.Entry(row, width=5, justify="center")
-        e_next.insert(0, str(next_val))
-        e_next.pack(side="left", padx=1)
-        mobile_delay_entries[f"{label}_next"] = e_next
-
-# Hàng 1: BƯỚC 1 và BƯỚC 2
-row1_mobile = tk.Frame(steps_container_mobile, bg="white")
-row1_mobile.pack(fill="x", pady=2)
-
-_create_step_frame_mobile(row1_mobile, "BƯỚC 1", [
-    ("Mail", 0.18, 1, 2)
-])
-
-_create_step_frame_mobile(row1_mobile, "BƯỚC 2", [
-    ("Code", 0.3, 2, 2)
-])
-
-# Hàng 2: BƯỚC 3 và BƯỚC 4
-row2_mobile = tk.Frame(steps_container_mobile, bg="white")
-row2_mobile.pack(fill="x", pady=2)
-
-_create_step_frame_mobile(row2_mobile, "BƯỚC 3", [
-    ("Pass", 0.18, 3, 2)
-])
-
-_create_step_frame_mobile(row2_mobile, "BƯỚC 4", [
-    ("Tuổi", 0.18, 2, 2)
-])
-
-# Hàng 3: BƯỚC 5
-row3_mobile = tk.Frame(steps_container_mobile, bg="white")
-row3_mobile.pack(fill="x", pady=2)
-
-_create_step_frame_mobile(row3_mobile, "BƯỚC 5", [
-    ("Họ tên", 0.18, 2, 2)
-])
-
-def get_mobile_delay(key, default):
-    try:
-        val = mobile_delay_entries[key].get().strip()
-        return float(val) if val else default
-    except Exception:
-        return default
-
-def collect_mobile_step_delays():
-    keys = ["Mail","Code","Pass","Tuổi","Họ tên"]
-    out = {}
-    for k in keys:
-        out[f"{k}_type"]  = mobile_delay_entries.get(f"{k}_type")
-        out[f"{k}_sleep"] = mobile_delay_entries.get(f"{k}_sleep")
-        out[f"{k}_next"]  = mobile_delay_entries.get(f"{k}_next")
-    return out
-
 # HÀNG 7: NETWORK MODE (RadioButton: WIFI | WARP | WARP-SPIN | PROXY)
 row_network_mobile = tk.Frame(mobile_settings, bg="white")
 row_network_mobile.pack(fill="x", padx=6, pady=(4,6))
@@ -7372,15 +7550,9 @@ PROXY_TXT  = os.path.join(os.getcwd(), "Proxy.txt")
 phone_settings = tk.LabelFrame(instagram_content, text="Phone Settings", bg="white", font=("ROG Fonts STRIX SCAR", 11, "bold"))
 
 def _position_phone_settings():
-    """Đặt Phone Settings bên dưới khung GIAO DIỆN."""
+    """Đặt Phone Settings ở vị trí cố định giữa giao diện (giống Desktop)."""
     instagram_content.update_idletasks()
-    try:
-        # Tính vị trí: bên dưới khung GIAO DIỆN (giống Desktop/Mobile)
-        x = left_frame.winfo_x()
-        y = left_frame.winfo_y() + left_frame.winfo_height() + 10
-        phone_settings.place(x=x, y=y)
-    except Exception:
-        phone_settings.place(x=20, y=250)
+    phone_settings.place(relx=0.5, y=250, anchor="n")
 
 # app.after(180, _position_phone_settings)  # ẨN khi mở app
 
@@ -7428,7 +7600,7 @@ proxy_phone_entry.insert(0, "")
 follow_phone_frame = tk.Frame(row2_phone, bg="white")
 follow_phone_frame.pack(side="left")
 phone_follow_count_var = tk.IntVar(value=10)
-tk.Label(follow_phone_frame, text="Số lượng follow:", bg="white", font=rog_font_small).pack(side="left", padx=(0,4))
+tk.Label(follow_phone_frame, text="FOLLOW COUNT:", bg="white", font=rog_font_small).pack(side="left", padx=(0,4))
 ttk.Spinbox(follow_phone_frame, from_=1, to=30, textvariable=phone_follow_count_var, width=5).pack(side="left")
 
 # ====================== BẢNG THIẾT BỊ 3 CỘT ======================
@@ -7437,7 +7609,7 @@ ttk.Label(phone_settings, text="Thiết bị ADB (chọn 1 hoặc nhiều):", ba
 
 cols = ("udid", "view", "pick")
 phone_device_tree = ttk.Treeview(phone_settings, columns=cols, show="headings", height=6)
-phone_device_tree.heading("udid", text="DANH SÁCH THIẾT BỊ")
+phone_device_tree.heading("udid", text="DEVICE UDID")
 phone_device_tree.heading("view", text="VIEW")
 phone_device_tree.heading("pick", text="CHỌN")
 phone_device_tree.column("udid", width=260, anchor="w")
@@ -7454,14 +7626,14 @@ except Exception:
 buttons_row = tk.Frame(phone_settings, bg="white")
 buttons_row.pack(fill="x", padx=8, pady=(4,6))
 
-ttk.Button(buttons_row, text="Refresh ADB devices", command=refresh_adb_devices_table)\
+ttk.Button(buttons_row, text="REFRESH ADB DEVICES", command=refresh_adb_devices_table)\
    .pack(side="left", padx=(0,4))
 
-ttk.Button(buttons_row, text="Kill ADB and Reload", 
+ttk.Button(buttons_row, text="KILL ADB & RELOAD", 
            command=lambda: threading.Thread(target=kill_adb_and_reload, daemon=True).start())\
     .pack(side="left", padx=(0,4))
 
-ttk.Button(buttons_row, text="Sắp xếp Phone View", command=open_and_arrange)\
+ttk.Button(buttons_row, text="ARRANGE PHONE VIEW", command=open_and_arrange)\
     .pack(side="left", padx=(0,4))
 
 combo_res = ttk.Combobox(
@@ -7545,13 +7717,13 @@ load_phone_paths()
 actions_buttons = tk.Frame(phone_settings, bg="white")
 actions_buttons.pack(fill="x", padx=PHONE_PADX, pady=(4, PHONE_PADY))
 
-ttk.Button(actions_buttons, text="Mở Proxy.txt", command=open_proxy_txt)\
+ttk.Button(actions_buttons, text="OPEN Proxy.txt", command=open_proxy_txt)\
    .pack(side="left", padx=(0, 3))
-ttk.Button(actions_buttons, text="Chọn folder ảnh", command=choose_photo_folder_phone)\
+ttk.Button(actions_buttons, text="CHOOSE PHOTO FOLDER", command=choose_photo_folder_phone)\
    .pack(side="left", padx=(0, 3))
-ttk.Button(actions_buttons, text="Chọn scrcpy.exe", command=choose_scrcpy_path)\
+ttk.Button(actions_buttons, text="CHOOSE scrcpy.exe", command=choose_scrcpy_path)\
    .pack(side="left", padx=(0, 3))
-ttk.Button(actions_buttons, text="Mở View Phone",
+ttk.Button(actions_buttons, text="OPEN VIEW PHONE",
            command=lambda: open_scrcpy_for_list(get_checked_udids("view")))\
    .pack(side="left")
 
@@ -7559,6 +7731,7 @@ ttk.Button(actions_buttons, text="Mở View Phone",
 net_label_frame = tk.Frame(phone_settings, bg="white")
 net_label_frame.pack(fill="x", padx=PHONE_PADX, pady=(4, PHONE_PADY))
 
+tk.Label(net_label_frame, text="CHOOSE WIFI:", bg="white", font=("ROG Fonts STRIX SCAR", 9, "bold")).pack(side="left", padx=(0,8))
 ttk.Radiobutton(net_label_frame, text="WiFi", value="wifi", variable=phone_net_mode).pack(side="left", padx=4)
 ttk.Radiobutton(net_label_frame, text="WARP", value="warp", variable=phone_net_mode).pack(side="left", padx=4)
 ttk.Radiobutton(net_label_frame, text="Proxy", value="proxy", variable=phone_net_mode).pack(side="left", padx=4)
@@ -7575,6 +7748,7 @@ except Exception:
 proxy_type_frame = tk.Frame(phone_settings, bg="white")
 proxy_type_frame.pack(fill="x", padx=PHONE_PADX, pady=(2, PHONE_PADY))
 
+tk.Label(proxy_type_frame, text="PROXY:", bg="white", font=("ROG Fonts STRIX SCAR", 9, "bold")).pack(side="left", padx=(0,8))
 ttk.Radiobutton(proxy_type_frame, text="IP:PORT", variable=proxy_format_var, value="ip_port").pack(side="left", padx=4)
 ttk.Radiobutton(proxy_type_frame, text="IP:PORT:USER:PASS", variable=proxy_format_var, value="ip_port_userpass").pack(side="left", padx=4)
 
@@ -7588,6 +7762,7 @@ def _persist_ig_choice():
 app_select_frame = tk.Frame(phone_settings, bg="white")
 app_select_frame.pack(fill="x", padx=PHONE_PADX, pady=(2, PHONE_PADY))
 
+tk.Label(app_select_frame, text="APP:", bg="white", font=("ROG Fonts STRIX SCAR", 9, "bold")).pack(side="left", padx=(0,8))
 ttk.Radiobutton(app_select_frame, text="Instagram", value="instagram",
                 variable=phone_ig_app_var, command=_persist_ig_choice).pack(side="left", padx=4)
 ttk.Radiobutton(app_select_frame, text="Instagram Lite", value="instagram_lite",
@@ -7597,6 +7772,7 @@ ttk.Radiobutton(app_select_frame, text="Instagram Lite", value="instagram_lite",
 mail_frame = tk.Frame(phone_settings, bg="white")
 mail_frame.pack(fill="x", padx=PHONE_PADX, pady=(2, PHONE_PADY))
 
+tk.Label(mail_frame, text="MAIL:", bg="white", font=("ROG Fonts STRIX SCAR", 9, "bold")).pack(side="left", padx=(0,8))
 mail_phone_var = tk.StringVar(value="temp")
 tk.Radiobutton(mail_frame, text="temp-mail.asia", variable=mail_phone_var, value="temp", bg="white").pack(side="left", padx=4)
 tk.Radiobutton(mail_frame, text="DropMail.me", variable=mail_phone_var, value="drop", bg="white").pack(side="left", padx=4)
@@ -7605,21 +7781,25 @@ tk.Radiobutton(mail_frame, text="DropMail.me", variable=mail_phone_var, value="d
 job_frame = tk.Frame(phone_settings, bg="white")
 job_frame.pack(fill="x", padx=PHONE_PADX, pady=(2, PHONE_PADY))
 
+tk.Label(job_frame, text="JOB:", bg="white", font=("ROG Fonts STRIX SCAR", 9, "bold")).pack(side="left", padx=(0,8))
+
 enable_2faphone    = tk.BooleanVar(value=False)
 enable_uppost      = tk.BooleanVar(value=False)
 enable_editprofile = tk.BooleanVar(value=False)
 enable_autofollow  = tk.BooleanVar(value=False)
 enable_proaccount  = tk.BooleanVar(value=False)
 
-ttk.Checkbutton(job_frame, text="Enable 2FA (Phone/App)", variable=enable_2faphone).pack(side="left", padx=4)
-ttk.Checkbutton(job_frame, text="Enable Up Post", variable=enable_uppost).pack(side="left", padx=4)
-ttk.Checkbutton(job_frame, text="Enable Edit Profile", variable=enable_editprofile).pack(side="left", padx=4)
-ttk.Checkbutton(job_frame, text="Enable Auto Follow", variable=enable_autofollow).pack(side="left", padx=4)
-ttk.Checkbutton(job_frame, text="Enable Switch to Professional", variable=enable_proaccount).pack(side="left", padx=4)
+ttk.Checkbutton(job_frame, text="2FA", variable=enable_2faphone).pack(side="left", padx=4)
+ttk.Checkbutton(job_frame, text="UP POST", variable=enable_uppost).pack(side="left", padx=4)
+ttk.Checkbutton(job_frame, text="EDIT PROFILE", variable=enable_editprofile).pack(side="left", padx=4)
+ttk.Checkbutton(job_frame, text="FOLLOW", variable=enable_autofollow).pack(side="left", padx=4)
+ttk.Checkbutton(job_frame, text="PROFESSIONAL", variable=enable_proaccount).pack(side="left", padx=4)
 
 # ======================= PROFESSIONAL ACCOUNT =======================
 pro_settings_frame = tk.Frame(phone_settings, bg="white")
 pro_settings_frame.pack(fill="x", padx=PHONE_PADX, pady=(2, PHONE_PADY))
+
+tk.Label(pro_settings_frame, text="PRO:", bg="white", font=("ROG Fonts STRIX SCAR", 9, "bold")).pack(side="left", padx=(0,8))
 
 CATEGORIES = [
     "Artist", "Musician/band", "Blogger", "Clothing (Brand)",
@@ -7632,11 +7812,11 @@ CATEGORIES = [
 pro_category_var = tk.StringVar(value="Reel creator")
 pro_type_var = tk.StringVar(value="Creator")
 
-tk.Label(pro_settings_frame, text="Category:", bg="white").grid(row=0, column=0, sticky="w", padx=(0,4))
-ttk.Combobox(pro_settings_frame, textvariable=pro_category_var, values=CATEGORIES, width=20, state="readonly").grid(row=0, column=1, padx=(0,10))
+tk.Label(pro_settings_frame, text="Category:", bg="white").pack(side="left", padx=(0,4))
+ttk.Combobox(pro_settings_frame, textvariable=pro_category_var, values=CATEGORIES, width=20, state="readonly").pack(side="left", padx=(0,10))
 
-tk.Label(pro_settings_frame, text="Type:", bg="white").grid(row=0, column=2, sticky="w", padx=(0,4))
-ttk.Combobox(pro_settings_frame, textvariable=pro_type_var, values=["Creator", "Business"], width=10, state="readonly").grid(row=0, column=3)
+tk.Label(pro_settings_frame, text="Type:", bg="white").pack(side="left", padx=(0,4))
+ttk.Combobox(pro_settings_frame, textvariable=pro_type_var, values=["Creator", "Business"], width=10, state="readonly").pack(side="left")
 
 # ========================= ẨN/HIỆN 3 BẢNG SETTINGS THEO CHẾ ĐỘ =========================
 def update_settings_visibility(*_):
@@ -7680,9 +7860,330 @@ except Exception:
 # ========================= TAB 2 & 3 CONTENT =========================
 # ===== TAB 2: CHECK LIVE =====
 checklive_content = tk.Frame(app, bg="white")
-checklive_label = tk.Label(checklive_content, text="CHECK LIVE CONTENT", 
-                           font=("ROG Fonts STRIX SCAR", 16, "bold"), bg="white")
-checklive_label.pack(expand=True)
+
+# Status bar (LIVE/DIE/RATE) cho Check Live
+checklive_status_frame = tk.Frame(checklive_content, bg="white")
+checklive_status_frame.pack(side="top", anchor="w", pady=5, padx=5)
+
+checklive_live_var = tk.StringVar(value="0")
+checklive_die_var = tk.StringVar(value="0")
+checklive_rate_var = tk.StringVar(value="0%")
+
+rog_font_checklive = ("ROG Fonts STRIX SCAR", 13, "bold")
+tk.Label(checklive_status_frame, text="LIVE:", fg="green", bg="white", font=rog_font_checklive).grid(row=0, column=0, padx=5)
+tk.Label(checklive_status_frame, textvariable=checklive_live_var, fg="green", bg="white", font=rog_font_checklive).grid(row=0, column=1, padx=5)
+tk.Label(checklive_status_frame, text="DIE:",  fg="red",   bg="white", font=rog_font_checklive).grid(row=0, column=2, padx=5)
+tk.Label(checklive_status_frame, textvariable=checklive_die_var,  fg="red",   bg="white", font=rog_font_checklive).grid(row=0, column=3, padx=5)
+tk.Label(checklive_status_frame, text="RATE:", fg="blue",  bg="white", font=rog_font_checklive).grid(row=0, column=6, padx=5)
+tk.Label(checklive_status_frame, textvariable=checklive_rate_var, fg="blue",  bg="white", font=rog_font_checklive).grid(row=0, column=7, padx=5)
+
+# Main frame cho Tree và Logs
+checklive_main_frame = tk.Frame(checklive_content, bg="white")
+checklive_main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+# Tree Frame
+checklive_tree_frame = tk.LabelFrame(checklive_main_frame, text="Accounts", bg="white", font=("Arial", 10, "bold"))
+checklive_tree_frame.pack(side="top", fill="both", expand=True, padx=5, pady=(0,5))
+
+checklive_cols = ["STT","TRẠNG THÁI","USERNAME","PASS","MAIL","PHONE","COOKIE","2FA","TOKEN","IP","PROXY","LIVE","DIE","FOLLOW","POST","AVATAR","GENDER","BIO","PROFESSIONAL"]
+checklive_tree = ttk.Treeview(checklive_tree_frame, columns=checklive_cols, show="headings", height=12)
+
+# Scrollbars cho Tree
+checklive_vsb = ttk.Scrollbar(checklive_tree_frame, orient="vertical", command=checklive_tree.yview)
+checklive_tree.configure(yscrollcommand=checklive_vsb.set)
+checklive_vsb.pack(side="right", fill="y")
+
+checklive_hsb = ttk.Scrollbar(checklive_tree_frame, orient="horizontal", command=checklive_tree.xview)
+checklive_tree.configure(xscrollcommand=checklive_hsb.set)
+checklive_hsb.pack(side="bottom", fill="x")
+
+checklive_tree.pack(fill="both", expand=True)
+
+# Cấu hình columns và headings
+for col in checklive_cols:
+    checklive_tree.heading(col, text=col, anchor="center")
+    checklive_tree.column(col, width=120, anchor="center")
+
+# Tags cho LIVE/DIE
+checklive_tree.tag_configure("LIVE", background="lightgreen")
+checklive_tree.tag_configure("DIE", background="tomato")
+
+# ===== CHỨC NĂNG CTRL+A VÀ CONTEXT MENU CHO CHECK LIVE TREE =====
+
+# Hàm chọn tất cả items trong Tree (Ctrl+A)
+def select_all_checklive(event=None):
+    """Chọn tất cả items trong bảng Check Live Tree"""
+    items = checklive_tree.get_children()
+    for item in items:
+        checklive_tree.selection_add(item)
+    return "break"  # Ngăn không cho event lan truyền
+
+# Bind Ctrl+A cho Tree
+checklive_tree.bind("<Control-a>", select_all_checklive)
+checklive_tree.bind("<Control-A>", select_all_checklive)
+
+# Hàm xóa items đã chọn
+def delete_selected_checklive():
+    """Xóa các items đã chọn trong bảng Check Live"""
+    selected = checklive_tree.selection()
+    if not selected:
+        messagebox.showwarning("Cảnh báo", "Vui lòng chọn ít nhất 1 tài khoản để xóa!")
+        return
+    
+    confirm = messagebox.askyesno("Xác nhận", 
+                                  f"Bạn có chắc muốn xóa {len(selected)} tài khoản đã chọn?")
+    if confirm:
+        for item in selected:
+            checklive_tree.delete(item)
+        
+        # Cập nhật lại STT
+        remaining_items = checklive_tree.get_children()
+        for idx, item in enumerate(remaining_items, start=1):
+            values = list(checklive_tree.item(item, "values"))
+            values[0] = idx  # Cập nhật STT
+            checklive_tree.item(item, values=values)
+        
+        messagebox.showinfo("Thành công", f"Đã xóa {len(selected)} tài khoản!")
+
+# Hàm xóa tất cả items
+def delete_all_checklive():
+    """Xóa tất cả items trong bảng Check Live"""
+    items = checklive_tree.get_children()
+    if not items:
+        messagebox.showinfo("Thông báo", "Bảng đang trống!")
+        return
+    
+    confirm = messagebox.askyesno("Xác nhận", 
+                                  f"Bạn có chắc muốn xóa TẤT CẢ {len(items)} tài khoản?")
+    if confirm:
+        for item in items:
+            checklive_tree.delete(item)
+        messagebox.showinfo("Thành công", "Đã xóa tất cả tài khoản!")
+
+# Tạo Context Menu (Right-click menu)
+checklive_context_menu = tk.Menu(app, tearoff=0, bg="white", fg="black", 
+                                 font=("Arial", 10), activebackground="#0078D7", 
+                                 activeforeground="white")
+
+checklive_context_menu.add_command(label="➕ Thêm tài khoản", 
+                                   command=lambda: open_add_account_window())
+checklive_context_menu.add_separator()
+checklive_context_menu.add_command(label="🗑️ Xóa đã chọn", 
+                                   command=delete_selected_checklive)
+checklive_context_menu.add_command(label="🗑️ Xóa tất cả", 
+                                   command=delete_all_checklive)
+checklive_context_menu.add_separator()
+checklive_context_menu.add_command(label="✅ Chọn tất cả (Ctrl+A)", 
+                                   command=select_all_checklive)
+
+# Hàm hiển thị context menu
+def show_checklive_context_menu(event):
+    """Hiển thị context menu khi chuột phải"""
+    try:
+        checklive_context_menu.tk_popup(event.x_root, event.y_root)
+    finally:
+        checklive_context_menu.grab_release()
+
+# Bind chuột phải cho Tree
+checklive_tree.bind("<Button-3>", show_checklive_context_menu)
+
+# Hàm mở cửa sổ ADD ACCOUNT
+def open_add_account_window():
+    """Mở cửa sổ để thêm tài khoản vào bảng Check Live"""
+    add_window = tk.Toplevel(app)
+    add_window.title("Add Account")
+    add_window.geometry("700x500")
+    add_window.configure(bg="white")
+    add_window.resizable(False, False)
+    
+    # Title
+    title_label = tk.Label(add_window, text="THÊM TÀI KHOẢN", 
+                           font=("ROG Fonts STRIX SCAR", 16, "bold"), 
+                           bg="white", fg="black")
+    title_label.pack(pady=10)
+    
+    # Frame cho định dạng
+    format_frame = tk.LabelFrame(add_window, text="Định dạng tài khoản", 
+                                 bg="white", font=("Arial", 10, "bold"))
+    format_frame.pack(fill="x", padx=20, pady=(10, 5))
+    
+    # Dropdown chọn định dạng
+    format_options = [
+        "Username|Pass",
+        "Username|Pass|Mail",
+        "Username|Pass|Mail|Cookie",
+        "Username|Pass|Mail|Cookie|2FA",
+        "Username|Pass|Mail|2FA",
+        "Mail|Pass",
+        "Cookie"
+    ]
+    
+    format_var = tk.StringVar(value="Username|Pass|Mail")
+    
+    tk.Label(format_frame, text="Chọn định dạng:", bg="white", 
+             font=("Arial", 10)).pack(side="left", padx=10, pady=10)
+    format_combo = ttk.Combobox(format_frame, textvariable=format_var, 
+                                values=format_options, state="readonly", width=35)
+    format_combo.pack(side="left", padx=10, pady=10)
+    
+    # Frame cho nhập tài khoản
+    input_frame = tk.LabelFrame(add_window, text="Nhập tài khoản (mỗi dòng 1 tài khoản)", 
+                               bg="white", font=("Arial", 10, "bold"))
+    input_frame.pack(fill="both", expand=True, padx=20, pady=5)
+    
+    # Text widget để nhập nhiều dòng
+    account_text = scrolledtext.ScrolledText(input_frame, width=70, height=15, 
+                                             bg="lightyellow", fg="black", 
+                                             font=("Consolas", 10))
+    account_text.pack(fill="both", expand=True, padx=10, pady=10)
+    
+    # Placeholder text
+    placeholder = "Ví dụ:\nusername1|password1|email1@gmail.com\nusername2|password2|email2@gmail.com\n..."
+    account_text.insert("1.0", placeholder)
+    account_text.config(fg="gray")
+    
+    # Xóa placeholder khi focus
+    def on_focus_in(event):
+        if account_text.get("1.0", "end-1c") == placeholder:
+            account_text.delete("1.0", "end")
+            account_text.config(fg="black")
+    
+    def on_focus_out(event):
+        if not account_text.get("1.0", "end-1c").strip():
+            account_text.insert("1.0", placeholder)
+            account_text.config(fg="gray")
+    
+    account_text.bind("<FocusIn>", on_focus_in)
+    account_text.bind("<FocusOut>", on_focus_out)
+    
+    # Hàm thêm tài khoản vào Tree
+    def add_accounts_to_tree():
+        text_content = account_text.get("1.0", "end-1c").strip()
+        
+        if not text_content or text_content == placeholder:
+            messagebox.showwarning("Cảnh báo", "Vui lòng nhập tài khoản!")
+            return
+        
+        lines = text_content.split("\n")
+        added_count = 0
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            parts = line.split("|")
+            selected_format = format_var.get()
+            
+            # Parse theo định dạng đã chọn
+            username = parts[0] if len(parts) > 0 else ""
+            password = ""
+            mail = ""
+            cookie = ""
+            twofa = ""
+            
+            if "Username|Pass|Mail|Cookie|2FA" in selected_format:
+                password = parts[1] if len(parts) > 1 else ""
+                mail = parts[2] if len(parts) > 2 else ""
+                cookie = parts[3] if len(parts) > 3 else ""
+                twofa = parts[4] if len(parts) > 4 else ""
+            elif "Username|Pass|Mail|Cookie" in selected_format:
+                password = parts[1] if len(parts) > 1 else ""
+                mail = parts[2] if len(parts) > 2 else ""
+                cookie = parts[3] if len(parts) > 3 else ""
+            elif "Username|Pass|Mail|2FA" in selected_format:
+                password = parts[1] if len(parts) > 1 else ""
+                mail = parts[2] if len(parts) > 2 else ""
+                twofa = parts[3] if len(parts) > 3 else ""
+            elif "Username|Pass|Mail" in selected_format:
+                password = parts[1] if len(parts) > 1 else ""
+                mail = parts[2] if len(parts) > 2 else ""
+            elif "Username|Pass" in selected_format:
+                password = parts[1] if len(parts) > 1 else ""
+            elif "Mail|Pass" in selected_format:
+                mail = username  # Dòng đầu là mail
+                password = parts[1] if len(parts) > 1 else ""
+                username = mail.split("@")[0] if "@" in mail else mail
+            elif "Cookie" in selected_format:
+                cookie = username
+                username = ""
+            
+            # Lấy STT tiếp theo
+            current_items = checklive_tree.get_children()
+            stt = len(current_items) + 1
+            
+            # Thêm vào Tree với 19 cột
+            values = [
+                stt,              # STT
+                "Chưa check",     # TRẠNG THÁI
+                username,         # USERNAME
+                password,         # PASS
+                mail,             # MAIL
+                "",               # PHONE
+                cookie,           # COOKIE
+                twofa,            # 2FA
+                "",               # TOKEN
+                "",               # IP
+                "",               # PROXY
+                "",               # LIVE
+                "",               # DIE
+                "",               # FOLLOW
+                "",               # POST
+                "",               # AVATAR
+                "",               # GENDER
+                "",               # BIO
+                ""                # PROFESSIONAL
+            ]
+            
+            checklive_tree.insert("", "end", values=values)
+            added_count += 1
+        
+        messagebox.showinfo("Thành công", f"Đã thêm {added_count} tài khoản vào bảng!")
+        account_text.delete("1.0", "end")
+        account_text.insert("1.0", placeholder)
+        account_text.config(fg="gray")
+    
+    # Button frame
+    btn_frame = tk.Frame(add_window, bg="white")
+    btn_frame.pack(side="bottom", pady=15)
+    
+    # Nút Thêm
+    add_btn = tk.Button(btn_frame, text="✅ THÊM TÀI KHOẢN", 
+                       font=("ROG Fonts STRIX SCAR", 12, "bold"),
+                       bg="#4CAF50", fg="white", 
+                       command=add_accounts_to_tree,
+                       padx=20, pady=10, cursor="hand2")
+    add_btn.pack(side="left", padx=5)
+    
+    # Nút Đóng
+    close_btn = tk.Button(btn_frame, text="❌ ĐÓNG", 
+                         font=("ROG Fonts STRIX SCAR", 12, "bold"),
+                         bg="#f44336", fg="white",
+                         command=add_window.destroy,
+                         padx=20, pady=10, cursor="hand2")
+    close_btn.pack(side="left", padx=5)
+
+# Button frame cho các nút điều khiển
+checklive_btn_frame = tk.Frame(checklive_content, bg="white")
+checklive_btn_frame.pack(side="bottom", pady=10)
+
+# Nút ADD ACCOUNT
+add_account_btn = tk.Button(checklive_btn_frame, text="➕ ADD ACCOUNT",
+                           font=("ROG Fonts STRIX SCAR", 11, "bold"),
+                           bg="#2196F3", fg="white",
+                           command=open_add_account_window,
+                           padx=15, pady=8, cursor="hand2")
+add_account_btn.pack(side="left", padx=5)
+# Nút CHECK LIVE
+def check_live_accounts():
+    messagebox.showinfo("CHECK LIVE", "Chức năng CHECK LIVE sẽ được phát triển ở đây!")
+
+check_live_btn = tk.Button(checklive_btn_frame, text="🔍 CHECK LIVE",
+                           font=("ROG Fonts STRIX SCAR", 11, "bold"),
+                           bg="#00BFFF", fg="white",
+                           command=check_live_accounts,
+                           padx=15, pady=8, cursor="hand2")
+check_live_btn.pack(side="left", padx=5)
 
 # ===== TAB 3: HISTORY =====
 history_content = tk.Frame(app, bg="white")
@@ -7796,10 +8297,37 @@ guide_label = tk.Label(guide_frame, text=guide_text, bg="white",
                        font=("Consolas", 10), justify="left", anchor="w")
 guide_label.pack(padx=20, pady=10, fill="both", expand=True)
 
+# ===== TAB 5: UTILITIES (TIỆN ÍCH) =====
+utilities_content = tk.Frame(app, bg="white")
+utilities_title = tk.Label(utilities_content, text="UTILITIES", 
+                           font=("ROG Fonts STRIX SCAR", 18, "bold"), bg="white", fg="black")
+utilities_title.pack(pady=20)
+
+# Container cho các tiện ích
+utilities_container = tk.Frame(utilities_content, bg="white")
+utilities_container.pack(expand=True, fill="both", padx=40, pady=20)
+
+# Grid layout cho các nút tiện ích
+util_button_font = ("ROG Fonts STRIX SCAR", 11, "bold")
+
+# ===== TAB 6: MENU =====
+menu_content = tk.Frame(app, bg="white")
+menu_title = tk.Label(menu_content, text="MENU - QUICK ACCESS", 
+                      font=("ROG Fonts STRIX SCAR", 18, "bold"), bg="white", fg="black")
+menu_title.pack(pady=20)
+
+# Container cho menu
+menu_container = tk.Frame(menu_content, bg="white")
+menu_container.pack(expand=True, fill="both", padx=40, pady=20)
+
+menu_button_font = ("ROG Fonts STRIX SCAR", 12, "bold")
+
+
 # Hiển thị tab mặc định (INSTAGRAM)
 switch_tab("INSTAGRAM")
 
 load_config()
+
 def open_main_app():
     try:
         app.deiconify()   # hiện lại giao diện chính
