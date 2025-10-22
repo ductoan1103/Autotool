@@ -477,6 +477,23 @@ def kill_adb_and_reload():
     except Exception as e:
         log(f"❌ Lỗi khi kill adb và reload: {repr(e)}")
 
+def delete_pictures_and_reboot():
+    try:
+        selected = get_checked_udids("pick") if "get_checked_udids" in globals() else []
+        if not selected:
+            messagebox.showinfo("ADB", "Chưa chọn thiết bị nào trong bảng.")
+            return
+        for udid in selected:
+            subprocess.call([
+                "adb", "-s", udid, "shell",
+                "rm", "-rf", "/sdcard/DCIM/*", "/sdcard/Pictures/*"
+            ])
+            subprocess.call(["adb", "-s", udid, "reboot"])
+        messagebox.showinfo("DELETE PIC", f"Đã xóa ảnh và reboot {len(selected)} thiết bị.")
+    except Exception as e:
+        messagebox.showerror("DELETE PIC", f"Lỗi: {repr(e)}")
+        log(f"❌ Lỗi khi xóa ảnh và reboot: {repr(e)}")
+
 def set_device_status(udid: str, status: str):
     """
     Cập nhật trạng thái cho thiết bị trong TreeView (thêm cột STATUS).
@@ -871,7 +888,16 @@ class AndroidWorker(threading.Thread):
                         self.enable_sim_4g(prefer_slot=1, allow_roaming=False)
                     except Exception as e:
                         self.log(f"⚠️ [Phone] Lỗi bật SIM 4G: {repr(e)}")
-
+                elif mode == "1.1.1.1":
+                    # 1.1.1.1: tương tự WARP nhưng dùng hàm riêng connect_1_1_1_1()
+                    self.log(f"🌐 [Phone] {self.udid}: Bật VPN 1.1.1.1")
+                    try:
+                        self.ensure_airplane_off()
+                        self.ensure_mobile_data_off()
+                        self.ensure_wifi_on()
+                        self.connect_1_1_1_1()  # ✅ dùng hàm mới
+                    except Exception as e:
+                        self.log(f"⚠️ [Phone] Lỗi bật 1.1.1.1 cho {self.udid}: {repr(e)}")
                 else:
                     self.log(f"ℹ️ Mode không hợp lệ: {mode} → dùng Wi-Fi mặc định")
                     self.ensure_airplane_off()
@@ -1174,17 +1200,18 @@ class AndroidWorker(threading.Thread):
         _tap_any_text(["Next","Tiếp","NEXT"], timeout=4, sleep_step=0.2)
         _tap_any_text(["Accept","Chấp nhận","Đồng ý","ACCEPT"], timeout=4, sleep_step=0.2)
 
-        time.sleep(2)
-        # 3) Chỉ bấm Install VPN Profile khi xuất hiện
-        if _exists_any_text(["Install VPN Profile", "Cài đặt hồ sơ VPN", "Cài đặt VPN"], timeout=5):
-            _tap_any_text(["Install VPN Profile", "Cài đặt hồ sơ VPN", "Cài đặt VPN"], timeout=3, sleep_step=0.2)
-            time.sleep(2.0)  # đợi popup hệ thống hiện ra
+        time.sleep(5)
+        # 3) Chỉ bấm Install VPN Profile khi xuất hiện (check nhanh, nếu không có thì bỏ qua)
+        if _exists_any_text(["Install VPN Profile", "Cài đặt hồ sơ VPN", "Cài đặt VPN"], timeout=1, sleep_step=0.12):
+            _tap_any_text(["Install VPN Profile", "Cài đặt hồ sơ VPN", "Cài đặt VPN"], timeout=1, sleep_step=0.12)
+            time.sleep(0.8)  # đợi popup hệ thống hiện ra (rút ngắn)
+            # xử lý popup hệ thống Android (Allow/OK) — chỉ bấm nếu xuất hiện
+            if _exists_any_text(["OK", "Cho phép", "Allow"], timeout=1, sleep_step=0.12):
+                _tap_any_text(["OK", "Cho phép", "Allow"], timeout=1, sleep_step=0.12)
 
-            # xử lý popup hệ thống Android (Allow/OK)
-            _tap_any_text(["OK", "Cho phép", "Allow"], timeout=5, sleep_step=0.5)
-
-        # 4) Popup Android “Connection request” → OK/Allow
-        _tap_any_text(["OK","Allow","Cho phép","ĐỒNG Ý"], timeout=4, sleep_step=0.2)
+        # 4) Popup Android “Connection request” → OK/Allow (chỉ bấm nếu có)
+        if _exists_any_text(["OK", "Allow", "Cho phép", "ĐỒNG Ý"], timeout=1, sleep_step=0.12):
+            _tap_any_text(["OK", "Allow", "Cho phép", "ĐỒNG Ý"], timeout=1, sleep_step=0.12)
 
         # 5) Bật công tắc/nút Connect
         toggled = False
@@ -1467,6 +1494,171 @@ class AndroidWorker(threading.Thread):
         except Exception as e:
             self.log(f"ℹ️ ADB lỗi/không đủ quyền: {e} → dùng UI")
             self.enable_sim_4g_via_ui(allow_roaming=False)
+
+    # ================================== WARP ( 1.1.1.1 / DNS ) ============================================
+    def connect_1_1_1_1(self):
+        """
+        Bật Cloudflare 1.1.1.1 (VPN) an toàn:
+        Airplane OFF -> Mobile data OFF -> Wi-Fi ON -> wake -> start_activity/activate/monkey -> wait foreground
+        -> Next -> Accept -> (Install VPN Profile + OK) -> Connect.
+        """
+        d = self.driver
+        udid = self.udid
+        pkg = "com.cloudflare.onedotonedotonedotone"
+        main_act = "com.cloudflare.app.MainActivity"
+
+        # ✅ Chuẩn bị môi trường cho 1.1.1.1
+        try:
+            self.ensure_airplane_off()
+            self.ensure_mobile_data_off()
+            self.ensure_wifi_on()
+        except Exception:
+            pass
+
+        # ===== helpers cục bộ =====
+        def _wake_screen():
+            try:
+                subprocess.call(["adb", "-s", udid, "shell", "input", "keyevent", "224"])
+                time.sleep(0.3)
+            except Exception:
+                pass
+
+        def _wait_app_foreground(package, timeout=12):
+            end = time.time() + timeout
+            while time.time() < end:
+                try:
+                    if d.current_package == package:
+                        return True
+                except Exception:
+                    pass
+                time.sleep(0.3)
+            return False
+
+        def _exists_any_text(texts, timeout=5, sleep_step=0.5):
+            """Kiểm tra có phần tử nào chứa text trong danh sách không."""
+            end = time.time() + timeout
+            while time.time() < end:
+                for t in texts:
+                    try:
+                        els = self.driver.find_elements(AppiumBy.XPATH, f'//*[contains(@text,"{t}")]')
+                        if els:
+                            return True
+                    except Exception:
+                        pass
+                time.sleep(sleep_step)
+            return False
+
+        def _tap_any_text(texts, timeout=5, sleep_step=0.5):
+            """Tìm và click phần tử có text trong danh sách."""
+            end = time.time() + timeout
+            while time.time() < end:
+                for t in texts:
+                    try:
+                        els = self.driver.find_elements(AppiumBy.XPATH, f'//*[contains(@text,"{t}")]')
+                        if els:
+                            els[0].click()
+                            self.log(f"👉 Đã bấm: {t}")
+                            return True
+                    except Exception:
+                        pass
+                time.sleep(sleep_step)
+            return False
+
+        _wake_screen()
+        self.log("🌐 Mở ứng dụng 1.1.1.1 (Cloudflare)…")
+
+        # 1) Mở app với chuỗi fallback
+        started = False
+        try:
+            d.start_activity(pkg, main_act)
+            started = True
+        except Exception:
+            try:
+                d.activate_app(pkg)
+                started = True
+            except Exception:
+                pass
+        if not started:
+            subprocess.call([
+                "adb", "-s", udid, "shell", "monkey", "-p", pkg,
+                "-c", "android.intent.category.LAUNCHER", "1"
+            ])
+
+        _wait_app_foreground(pkg, timeout=10)
+
+        # 2) Onboarding: Next -> Accept (nếu có)
+        _tap_any_text(["Next", "Tiếp", "NEXT"], timeout=4, sleep_step=0.2)
+        _tap_any_text(["Accept", "Chấp nhận", "Đồng ý", "ACCEPT"], timeout=4, sleep_step=0.2)
+
+        time.sleep(5)
+
+        # 3) Cài VPN Profile nếu có
+        if _exists_any_text(["Install VPN Profile", "Cài đặt hồ sơ VPN", "Cài đặt VPN"], timeout=1, sleep_step=0.12):
+            _tap_any_text(["Install VPN Profile", "Cài đặt hồ sơ VPN", "Cài đặt VPN"], timeout=1, sleep_step=0.12)
+            time.sleep(0.8)
+            if _exists_any_text(["OK", "Cho phép", "Allow"], timeout=1, sleep_step=0.12):
+                _tap_any_text(["OK", "Cho phép", "Allow"], timeout=1, sleep_step=0.12)
+
+        # 4) Popup “Connection request” → OK/Allow (chỉ bấm nếu có)
+        if _exists_any_text(["OK", "Allow", "Cho phép", "ĐỒNG Ý"], timeout=1, sleep_step=0.12):
+            _tap_any_text(["OK", "Allow", "Cho phép", "ĐỒNG Ý"], timeout=1, sleep_step=0.12)
+        
+        # 5) Mở menu và chọn chế độ 1.1.1.1 (DNS only)
+        try:
+            self.log("⚙️ Đang chuyển sang chế độ 1.1.1.1 (DNS only)…")
+
+            # Nhấn nút 3 gạch góc phải trên (Menu)
+            if _tap_any_text(["☰", "Menu"], timeout=2, sleep_step=0.3) is False:
+                # fallback: tap tọa độ góc phải trên nếu không có phần tử chứa text
+                try:
+                    size = d.get_window_size()
+                    x = int(size["width"] * 0.93)
+                    y = int(size["height"] * 0.08)
+                    d.swipe(x, y, x, y, 100)
+                except Exception:
+                    pass
+
+            # Chờ trang Settings hiện
+            time.sleep(5)
+
+            # Nhấn vào dòng “1.1.1.1”
+            _tap_any_text(["1.1.1.1"], timeout=5, sleep_step=0.3)
+
+            # Quay lại màn hình chính
+            d.back()
+            self.log("✅ Đã chuyển sang chế độ 1.1.1.1 thành công.")
+        except Exception as e:
+            self.log(f"⚠️ Lỗi khi chọn chế độ 1.1.1.1: {repr(e)}")
+        time.sleep(3)
+
+        # 6) Bật công tắc Connect
+        toggled = False
+        try:
+            for sw in d.find_elements(AppiumBy.CLASS_NAME, "android.widget.Switch"):
+                if sw.is_enabled() and sw.is_displayed():
+                    if (sw.get_attribute("checked") or "").lower() == "false":
+                        sw.click()
+                    toggled = True
+                    break
+        except Exception:
+            pass
+        if not toggled:
+            if not _tap_any_text(["Turn on", "Connect", "Kết nối", "Bật"], timeout=3, sleep_step=0.2):
+                try:
+                    size = d.get_window_size()
+                    x = int(size["width"] * 0.5)
+                    y = int(size["height"] * 0.42)
+                    d.swipe(x, y, x, y, 150)
+                except Exception:
+                    pass
+
+        # 7) Chờ chuyển trạng thái và xử lý popup thêm lần nữa nếu có
+        deadline = time.time() + 2
+        while time.time() < deadline and _exists_any_text(["Disconnected", "Không được bảo vệ"]):
+            time.sleep(0.4)
+        _tap_any_text(["OK", "Allow", "Cho phép", "ĐỒNG Ý"], timeout=2, sleep_step=0.2)
+
+        self.log("✅ Đã bật VPN 1.1.1.1 (Next/Accept/Install/OK/Connect).")
 
     # ================================== OPEN APP INSTAGRAM / LITE ============================================
     def open_instagram(self):
@@ -2811,10 +3003,9 @@ class AndroidWorker(threading.Thread):
                     app.after(0, lambda: update_tree_column(self.tree_item_id, "POST", "❌"))
             time.sleep(15)
         
-        # ==== AUTO FOLLOW NẾU CÓ CHỌN ====
+        # ==== AUTO FOLLOW ====
         pause_event.wait()
         if enable_autofollow.get():  
-            # AuTo Follow
             clicked = False
             # 1. Thử theo content-desc "Search and explore"
             try:
@@ -2895,7 +3086,7 @@ class AndroidWorker(threading.Thread):
                         log("❌ Không tìm thấy ô nhập Search khi follow username mới")
                         continue
 
-                    # Nhập username (send_keys fallback set_text hoặc JavaScript)
+                    # Nhập username (send_keys fallback set_text hoặc ADB)
                     try:
                         input_box.clear()
                     except Exception:
@@ -2905,14 +3096,13 @@ class AndroidWorker(threading.Thread):
                         log(f"⌨️ Nhập username bằng send_keys: {username}")
                     except Exception:
                         try:
-                            # Fallback: Dùng set_text() của Appium element
                             input_box.set_text(username)
                             log(f"⌨️ Nhập username bằng set_text: {username}")
                         except Exception:
                             try:
-                                # Fallback cuối: JavaScript để set value
-                                d.execute_script("arguments[0].value = arguments[1];", input_box, username)
-                                log(f"⌨️ Nhập username bằng JavaScript: {username}")
+                                # ✅ Fallback cuối: Dùng ADB input text thay vì JavaScript
+                                subprocess.call(["adb", "-s", self.udid, "shell", "input", "text", username])
+                                log(f"⌨️ Nhập username bằng ADB input text: {username}")
                             except Exception as e:
                                 log(f"❌ Không nhập được {username}: {e}")
                                 continue
@@ -2948,7 +3138,7 @@ class AndroidWorker(threading.Thread):
                             log(f"✅ Đã nhấn Follow cho {username}")
                             time.sleep(3)
                             followed += 1
-                            
+                                        
                             # Update tree: FOLLOW = số lượng/tổng số
                             if hasattr(self, 'tree_item_id') and self.tree_item_id:
                                 follow_status = f"{followed}/{follow_count}"
@@ -2959,14 +3149,13 @@ class AndroidWorker(threading.Thread):
                                 popup = d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Try Again Later")')
                                 if popup:
                                     log("⛔ Instagram đã block follow: Try Again Later popup xuất hiện.")
-                                    # Ấn OK để đóng popup
                                     try:
                                         ok_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
                                         ok_btn.click()
                                         log("✅ Đã ấn OK để đóng popup block follow.")
                                     except Exception:
                                         log("⚠️ Không tìm thấy nút OK trong popup.")
-                                    break  # Dừng thao tác follow tiếp
+                                    break
                             except Exception as e:
                                 log(f"⚠️ Lỗi khi kiểm tra popup block follow: {e}")
                             time.sleep(2)
@@ -3003,7 +3192,6 @@ class AndroidWorker(threading.Thread):
                     except Exception:
                         log(f"❌ Không tìm thấy nút Follow trên profile {username}")
 
-                    # Nếu đã đủ số lượng thì dừng
                     if followed >= follow_count:
                         break
 
@@ -8059,7 +8247,9 @@ combo_res.set("360x640")
 combo_res.bind("<<ComboboxSelected>>", change_resolution)
 combo_res.pack(side="left")
 
-
+ttk.Button(buttons_row, text="DELETE PIC",
+           command=lambda: threading.Thread(target=delete_pictures_and_reboot, daemon=True).start())\
+    .pack(side="left", padx=(0,4))
 
 # ======================= HANDLERS / CONFIG =======================
 photo_folder_phone = ""
@@ -8147,8 +8337,9 @@ net_label_frame.pack(fill="x", padx=PHONE_PADX, pady=(4, PHONE_PADY))
 tk.Label(net_label_frame, text="CHOOSE WIFI:", bg="white", font=("ROG Fonts STRIX SCAR", 9, "bold")).pack(side="left", padx=(0,8))
 ttk.Radiobutton(net_label_frame, text="WiFi", value="wifi", variable=phone_net_mode).pack(side="left", padx=4)
 ttk.Radiobutton(net_label_frame, text="WARP", value="warp", variable=phone_net_mode).pack(side="left", padx=4)
-ttk.Radiobutton(net_label_frame, text="Proxy", value="proxy", variable=phone_net_mode).pack(side="left", padx=4)
+ttk.Radiobutton(net_label_frame, text="PROXY", value="proxy", variable=phone_net_mode).pack(side="left", padx=4)
 ttk.Radiobutton(net_label_frame, text="SIM 4G", value="sim", variable=phone_net_mode).pack(side="left", padx=4)
+ttk.Radiobutton(net_label_frame, text="1.1.1.1", value="1.1.1.1", variable=phone_net_mode).pack(side="left", padx=4)
 
 # ======================= Proxy Type =======================
 proxy_format_var = tk.StringVar(value="ip_port")
@@ -8176,11 +8367,11 @@ app_select_frame = tk.Frame(phone_settings, bg="white")
 app_select_frame.pack(fill="x", padx=PHONE_PADX, pady=(2, PHONE_PADY))
 
 tk.Label(app_select_frame, text="APP:", bg="white", font=("ROG Fonts STRIX SCAR", 9, "bold")).pack(side="left", padx=(0,8))
-ttk.Radiobutton(app_select_frame, text="Instagram", value="instagram",
+ttk.Radiobutton(app_select_frame, text="INSTAGRAM", value="instagram",
                 variable=phone_ig_app_var, command=_persist_ig_choice).pack(side="left", padx=4)
-ttk.Radiobutton(app_select_frame, text="Instagram Lite", value="instagram_lite",
+ttk.Radiobutton(app_select_frame, text="INSTAGRAM LITE", value="instagram_lite",
                 variable=phone_ig_app_var, command=_persist_ig_choice).pack(side="left", padx=4)
-ttk.Radiobutton(app_select_frame, text="Chrome", value="chrome",
+ttk.Radiobutton(app_select_frame, text="CHROME", value="chrome",
                 variable=phone_ig_app_var, command=_persist_ig_choice).pack(side="left", padx=4)
 # ======================= MAIL SERVICE =======================
 mail_frame = tk.Frame(phone_settings, bg="white")
