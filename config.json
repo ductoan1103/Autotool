@@ -1,6 +1,6 @@
 {
-  "ava_folder_path": "C:/Users/MINH/Downloads/AutoTool/ava",
-  "chrome_path": "C:/Users/MINH/Downloads/AutoTool/chrome-win\\chrome.exe",
+  "ava_folder_path": "C:/Users/MINH/Desktop/Autotool/ava",
+  "chrome_path": "C:/Users/MINH/Downloads/chrome-win\\chrome.exe",
   "save_format": [
     "Username",
     "Pass",
@@ -8,11 +8,11 @@
     "Cookie",
     "2FA"
   ],
-  "photo_folder_phone": "D:/Downloads/AutoTool/ava",
+  "photo_folder_phone": "C:/Users/MINH/Desktop/Autotool/ava",
   "ig_app_choice": "instagram",
-  "scrcpy_path": "D:/Downloads/AutoTool/scrcpy-win64-v2.4/scrcpy-win64-v2.4/scrcpy.exe",
+  "scrcpy_path": "C:/Users/MINH/Desktop/Autotool/scrcpy-win64-v2.4/scrcpy-win64-v2.4/scrcpy.exe",
   "hidden_chrome": false,
-  "warp_controller_path": "C:/Users/MINH/Downloads/AutoTool/warp_controller.exe",
+  "warp_controller_path": "C:/Users/MINH/Desktop/Autotool/warp_controller.exe",
   "warpxoay_path": "C:/Users/MINH/Downloads/AutoTool/App_WarpXoay.exe",
   "chrome_folder": "C:/Users/MINH/Downloads/AutoTool/chrome-win",
   "desktop_width": "600",

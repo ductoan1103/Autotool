@@ -244,6 +244,22 @@ def adb_devices() -> list[str]:
 def adb_shell(udid: str, *args) -> str:
     return _run(["adb", "-s", udid, "shell", *args])
 
+def is_device_rooted(udid: str) -> bool:
+    """Kiểm tra nhanh thiết bị có root không (dùng su -c id hoặc which su)."""
+    try:
+        out = adb_shell(udid, "su", "-c", "id")
+        if out and "uid=0" in out:
+            return True
+    except Exception:
+        pass
+    try:
+        out2 = adb_shell(udid, "which", "su")
+        if out2 and out2.strip():
+            return True
+    except Exception:
+        pass
+    return False
+
 def clear_app_data(udid: str, package: str):
     out = adb_shell(udid, "pm", "clear", package)
     log(f"🧹 [{udid}] pm clear {package}: {out or 'OK'}")
@@ -411,28 +427,36 @@ def _tick(b: bool) -> str:
 
 def refresh_adb_devices_table():
     """
-    Quét ADB và đổ dữ liệu vào Treeview 3 cột: UDID | VIEW | CHỌN.
+    Quét ADB và đổ dữ liệu vào Treeview 4 cột: UDID | VIEW | CHỌN | STATUS.
     Giữ lại trạng thái tick cũ nếu UDID vẫn còn online.
-    Cập nhật phone_device_tree.
     """
     try:
         devs = adb_devices()
 
         # thêm dev mới vào state / xóa dev cũ
         for ud in devs:
-            device_state.setdefault(ud, {"view": False, "pick": False})
+            device_state.setdefault(ud, {"view": False, "pick": False, "status": "No root"})
         for ud in list(device_state.keys()):
             if ud not in devs:
                 device_state.pop(ud, None)
 
-        # Cập nhật phone_device_tree
+        # Cập nhật trạng thái root (có thể chậm nếu nhiều device)
+        for ud in devs:
+            try:
+                rooted = is_device_rooted(ud)
+                device_state.setdefault(ud, {})
+                device_state[ud]["status"] = "Rooted" if rooted else "No root"
+            except Exception:
+                device_state[ud]["status"] = "No root"
+
+        # Cập nhật phone_device_tree (4 cột)
         if phone_device_tree is not None:
             phone_device_tree.delete(*phone_device_tree.get_children())
             for ud in devs:
-                st = device_state[ud]
+                st = device_state.get(ud, {"view": False, "pick": False, "status": "No root"})
                 phone_device_tree.insert(
                     "", "end", iid=ud,
-                    values=(ud, _tick(st["view"]), _tick(st["pick"]))
+                    values=(ud, _tick(st.get("view", False)), _tick(st.get("pick", False)), st.get("status", "No root"))
                 )
 
         if devs:
@@ -7993,14 +8017,16 @@ ttk.Spinbox(follow_phone_frame, from_=1, to=30, textvariable=phone_follow_count_
 ttk.Label(phone_settings, text="Thiết bị ADB (chọn 1 hoặc nhiều):", background="white")\
    .pack(anchor="w", padx=8, pady=(8, 2))
 
-cols = ("udid", "view", "pick")
+cols = ("udid", "view", "pick", "status")
 phone_device_tree = ttk.Treeview(phone_settings, columns=cols, show="headings", height=6)
 phone_device_tree.heading("udid", text="DEVICE UDID")
 phone_device_tree.heading("view", text="VIEW")
 phone_device_tree.heading("pick", text="CHỌN")
-phone_device_tree.column("udid", width=260, anchor="w")
+phone_device_tree.heading("status", text="STATUS")
+phone_device_tree.column("udid", width=220, anchor="w")
 phone_device_tree.column("view", width=60, anchor="center")
 phone_device_tree.column("pick", width=60, anchor="center")
+phone_device_tree.column("status", width=100, anchor="center")
 phone_device_tree.pack(fill="both", expand=True, padx=8)
 
 try:
