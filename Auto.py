@@ -7112,7 +7112,7 @@ def show_intro(app, main_func):
 app = tk.Tk()
 app.withdraw() 
 app.title("Instagram Auto Creator")
-app.geometry("1150x830")
+app.geometry("1366x800")
 app.resizable(True, True)
 
 # --- Biến đếm Live/Die/Rate ---
@@ -7288,7 +7288,8 @@ menu_button.place(relx=0.5, rely=0.92, anchor="center")
 # ========================= TAB CONTENTS =========================
 
 # ===== TAB 1: INSTAGRAM (Nội dung chính hiện tại) =====
-instagram_content = tk.Frame(app, bg="white")
+instagram_content = tk.Frame(app, bg="white", width=900, height=500)
+instagram_content.place(relx=0.5, rely=0.5, anchor="center")
 
 # ========================= KHỐI TRÁI (bây giờ nằm trong instagram_content) =========================
 left_frame = tk.Frame(instagram_content, bg="white")
