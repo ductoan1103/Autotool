@@ -2781,303 +2781,40 @@ class AndroidWorker(threading.Thread):
                 if hasattr(self, 'tree_item_id') and self.tree_item_id:
                     app.after(0, lambda: update_tree_column(self.tree_item_id, "POST", "✅"))
             else:
-                log(f"⚠️ [{udid}] Không bấm được nút Share/Chia sẻ.")
-                # Update tree: POST = ❌
-                if hasattr(self, 'tree_item_id') and self.tree_item_id:
-                    app.after(0, lambda: update_tree_column(self.tree_item_id, "POST", "❌"))
-            time.sleep(15)
-        
-        # ==== AUTO FOLLOW NẾU CÓ CHỌN ====
-        pause_event.wait()
-        if enable_autofollow.get():  
-            # AuTo Follow
-            clicked = False
-            # 1. Thử theo content-desc "Search and explore"
-            try:
-                el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search and explore")
-                el.click()
-                log("✅ Đã nhấn nút kính lúp (Search and explore)")
-                clicked = True
-            except Exception:
-                log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search and explore'")
-
-            # 2. Thử theo content-desc "Search"
-            if not clicked:
-                try:
-                    el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search")
-                    el.click()
-                    log("✅ Đã nhấn nút kính lúp (Search)")
-                    clicked = True
-                except Exception:
-                    log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search'")
-
-            # 3. Thử bằng UiAutomator textContains
-            if not clicked:
-                try:
-                    el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Search")')
-                    el.click()
-                    log("✅ Đã nhấn nút kính lúp (descriptionContains 'Search')")
-                    clicked = True
-                except Exception:
-                    log("❌ Không tìm thấy nút kính lúp bằng descriptionContains 'Search'")
-
-            time.sleep(4)
-
-            # 1. Tìm ô nhập Search
-            input_box = None
-            for how, what in [
-                (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
-                (AppiumBy.CLASS_NAME, "android.widget.EditText"),
-            ]:
-                try:
-                    input_box = d.find_element(how, what)
-                    input_box.click()
-                    time.sleep(4)
-                    break
-                except Exception:
-                    continue
-
-            if not input_box:
-                log("❌ Không tìm thấy ô nhập Search")
-            else:
-                # 2. Lấy số lượng follow từ biến UI
-                try:
-                    follow_count = phone_follow_count_var.get()
-                except Exception:
-                    follow_count = 10
-
-                FOLLOW_USERNAMES = [
-                    "n.nhu1207","v.anh.26","shxuy0bel421162","shx_pe06","nguyen57506",
-                    "mhai_187","ductoan1103","bxyz.ni6","nhd_305.nh","monkeycatluna",
-                ]
-                follow_list = random.sample(FOLLOW_USERNAMES, min(follow_count, len(FOLLOW_USERNAMES)))
-                followed = 0
-
-                for username in follow_list:
-                    # Tìm lại ô nhập Search
-                    input_box = None
-                    for how, what in [
-                        (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
-                        (AppiumBy.CLASS_NAME, "android.widget.EditText"),
-                    ]:
-                        try:
-                            input_box = d.find_element(how, what)
-                            input_box.click()
-                            break
-                        except Exception:
-                            continue
-
-                    if not input_box:
-                        log("❌ Không tìm thấy ô nhập Search khi follow username mới")
-                        continue
-
-                    # Nhập username (send_keys fallback set_value)
-                    try:
-                        input_box.clear()
-                    except Exception:
-                        pass
-                    try:
-                        input_box.send_keys(username)
-                        log(f"⌨️ Nhập username bằng send_keys: {username}")
-                    except Exception:
-                        try:
-                            d.set_value(input_box, username)
-                            log(f"⌨️ Nhập username bằng set_value: {username}")
-                        except Exception as e:
-                            log(f"❌ Không nhập được {username}: {e}")
-                            continue
-                    time.sleep(5)
-
-                    # Tìm đúng username trong kết quả
-                    found = False
-                    results = d.find_elements(AppiumBy.ID, "com.instagram.android:id/row_search_user_username")
-                    if not results:
-                        results = d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{username}")')
-                    for el in results:
-                        try:
-                            t = (el.text or "").strip()
-                            if t.lower() == username.lower() or username.lower() in t.lower():
-                                el.click()
-                                log(f"✅ Đã nhấn vào username: {username}")
-                                found = True
-                                break
-                        except Exception:
-                            continue
-
-                    if not found:
-                        log(f"❌ Không tìm thấy username {username} trong kết quả tìm kiếm")
-                        continue
-
-                    time.sleep(5)
-
-                    # Nhấn nút Follow
-                    try:
-                        follow_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Follow")')
-                        if follow_btn.is_enabled() and follow_btn.is_displayed():
-                            follow_btn.click()
-                            log(f"✅ Đã nhấn Follow cho {username}")
-                            time.sleep(3)
-                            followed += 1
-                            
-                            # Update tree: FOLLOW = số lượng/tổng số
-                            if hasattr(self, 'tree_item_id') and self.tree_item_id:
-                                follow_status = f"{followed}/{follow_count}"
-                                app.after(0, lambda fs=follow_status: update_tree_column(self.tree_item_id, "FOLLOW", fs))
-
-                            # --- Kiểm tra popup block follow ---
-                            try:
-                                popup = d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Try Again Later")')
-                                if popup:
-                                    log("⛔ Instagram đã block follow: Try Again Later popup xuất hiện.")
-                                    # Ấn OK để đóng popup
-                                    try:
-                                        ok_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
-                                        ok_btn.click()
-                                        log("✅ Đã ấn OK để đóng popup block follow.")
-                                    except Exception:
-                                        log("⚠️ Không tìm thấy nút OK trong popup.")
-                                    break  # Dừng thao tác follow tiếp
-                            except Exception as e:
-                                log(f"⚠️ Lỗi khi kiểm tra popup block follow: {e}")
-                            time.sleep(2)
-
-                            # --- Back sau khi follow (2 lần) ---
-                            for i in range(2):
-                                back_clicked = False
-                                try:
-                                    for desc in ["Back", "Điều hướng lên"]:
-                                        try:
-                                            back_btn = d.find_element(AppiumBy.ACCESSIBILITY_ID, desc)
-                                            back_btn.click()
-                                            log(f"🔙 Đã nhấn nút mũi tên lùi lần {i+1} ({desc})")
-                                            back_clicked = True
-                                            time.sleep(2)
-                                            break
-                                        except Exception:
-                                            continue
-                                    if not back_clicked:
-                                        btns = d.find_elements(AppiumBy.CLASS_NAME, "android.widget.ImageButton")
-                                        if btns:
-                                            btns[0].click()
-                                            log(f"🔙 Đã nhấn nút mũi tên lùi lần {i+1}")
-                                            back_clicked = True
-                                            time.sleep(2)
-                                    if not back_clicked:
-                                        d.back()
-                                        log(f"🔙 Đã Ấn Back lần {i+1}")
-                                        time.sleep(2)
-                                except Exception:
-                                    log(f"⚠️ Không tìm thấy nút mũi tên lùi lần {i+1} sau khi Follow")
-                        else:
-                            log(f"❌ Nút Follow không khả dụng trên profile {username}")
-                    except Exception:
-                        log(f"❌ Không tìm thấy nút Follow trên profile {username}")
-
-                    # Nếu đã đủ số lượng thì dừng
-                    if followed >= follow_count:
-                        break
-
-        # ==== EDIT PROFILE (AVATAR + BIO) NẾU CÓ CHỌN ====
-        pause_event.wait()
-        if enable_editprofile.get():
-            # --- Vào Profile ---
-            subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
-            log("👤 Đã vào Profile")
-            time.sleep(10)
-            # Nhấn Edit profile
-            try:
-                log("Đang tìm nút 'Edit profile'...")
-                edit_profile_btn = None
-                try:
-                    edit_profile_btn = WebDriverWait(d, 8).until(
-                        EC.presence_of_element_located((
-                            AppiumBy.ANDROID_UIAUTOMATOR,
-                            'new UiSelector().text("Edit profile")'
-                        ))
-                    )
-                except Exception:
-                    log("[ERROR] Không tìm thấy nút 'Edit profile'.")
-                    return
-                if edit_profile_btn:
-                    edit_profile_btn.click()
-                    log("Đã nhấn nút 'Edit profile'.")
-                    time.sleep(5)
+                pics = [f for f in os.listdir(folder) if f.lower().endswith((".jpg",".jpeg",".png"))]
+                if not pics:
+                    log("⚠️ Folder ảnh không có file hợp lệ.")
                 else:
-                    log("Lỗi Không tìm thấy nút 'Edit profile'.")
-            except Exception as e:
-                log(f"Lỗi khi nhấn nút 'Edit profile': {e}")
+                    local_file = random.choice(pics)
+                    local_path = os.path.join(folder, local_file)
 
-            # Nếu không phải Share profile, thì check popup avatar
-            try:
-                notnow = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                        'new UiSelector().textContains("Not now")')
-                notnow.click()
-                log("✅ Đã ấn Not now ở popup tạo avatar")
-            except Exception:
-                pass  # Không có popup thì bỏ qua
-            
-            # UP AVATAR 
-            avatar_success = False
-            try:
-                # 1. Tìm và ấn vào "Change profile picture"
-                el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Change profile picture")')
-                el.click()
-                log("✅ Đã nhấn Change profile picture")
-                time.sleep(3)
+                    # Thư mục đích (nên là Pictures hoặc DCIM để IG thấy ngay)
+                    remote_dir  = "/sdcard/Pictures/AutoPhone"
+                    remote_path = f"{remote_dir}/{local_file}"  # giữ nguyên tên gốc
 
-                # 2. Chọn "Choose from library"
-                choose = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Choose from library")')
-                choose.click()
-                log("✅ Đã chọn Choose from library")
-                time.sleep(6)
+                    # 1) đảm bảo thư mục tồn tại
+                    adb_mkdir(self.udid, remote_dir)
 
-                # 3. Ấn "Done" (góc phải trên)
-                for txt in ["Done", "Next", "Tiếp", "Xong", "Lưu"]:
-                    try:
-                        d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
-                        avatar_success = True
-                        break
-                    except Exception:
-                        pass
-                time.sleep(13)
-            except Exception as e:
-                log(f"❌ Lỗi khi upload avatar: {e}")
-                avatar_success = False
-            
-            # Update tree: AVATAR
-            if hasattr(self, 'tree_item_id') and self.tree_item_id:
-                avatar_status = "✅" if avatar_success else "❌"
-                app.after(0, lambda: update_tree_column(self.tree_item_id, "AVATAR", avatar_status))
+                    # 2) đẩy file
+                    out_push = adb_push(self.udid, local_path, remote_path)
+                    if "error" in (out_push or "").lower():
+                        log(f"❌ adb push lỗi: {out_push}")
+                    else:
+                        # 3) ép MediaScanner quét lại
+                        adb_media_scan(self.udid, remote_path)
+                        log(f"✅ Đã push & scan ảnh: {remote_path}")
 
-            # Nhấn Edit profile
-            try:
-                log("Đang tìm nút 'Edit profile'...")
-                edit_profile_btn = None
-                try:
-                    edit_profile_btn = WebDriverWait(d, 8).until(
-                        EC.presence_of_element_located((
-                            AppiumBy.ANDROID_UIAUTOMATOR,
-                            'new UiSelector().text("Edit profile")'
-                        ))
-                    )
-                except Exception:
-                    log("Lỗi Không tìm thấy nút 'Edit profile'.")
-                    return
-                if edit_profile_btn:
-                    edit_profile_btn.click()
-                    log("Đã nhấn nút 'Edit profile'.")
-                    time.sleep(5)
-                else:
-                    log("Lỗi Không tìm thấy nút 'Edit profile'.")
-            except Exception as e:
-                log(f"Lỗi khi nhấn nút 'Edit profile': {e}")
+                    time.sleep(1.5)  # đợi Gallery cập nhật
+        except Exception as e:
+            log(f"❌ Lỗi khi push ảnh: {e}")
+        time.sleep(4)
 
-            # =============== EDIT BIO ===============
-            # 1. Ấn vào label Bio
-            el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Bio")')
-            el.click()
-            log("✅ Đã nhấn vào label Bio")
-            time.sleep(3)
+        # Điền BIO 
+        # 1. Ấn vào label Bio
+        el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Bio")')
+        el.click()
+        log("✅ Đã nhấn vào label Bio")
+        time.sleep(3)
 
             # 2. Tạo bio ngẫu nhiên từ BIO_LINES + emoji
             bio = random.choice(BIO_LINES) + " " + random.choice(CAPTION_EMOJIS)
@@ -3425,543 +3162,6 @@ class AndroidWorker(threading.Thread):
             log(f"⚠️ Lỗi khi điền email và nhấn Next: {repr(e)}")
             return False
 
-        time.sleep(13)
-
-        # 5) ------ Lấy Code Mail Và Điền =============
-        pause_event.wait()
-        log("✏️ Bắt đầu điền mã xác minh email")
-        code = None
-        # Chờ mã xác minh từ email tạm (DropMail hoặc TempAsia)
-        try:
-            if source == "dropmail":
-                code = wait_for_dropmail_code(self, drop_session_id, max_checks=30, interval=3)
-            else:
-                code = wait_for_tempmail_code(email, max_checks=30, interval=2)
-        except Exception as e:
-            log(f"⚠️ Lỗi khi lấy mã xác minh email: {repr(e)}")
-            code = None
-
-        if not code:
-            log("⛔ Không lấy được mã xác minh từ email.")
-            return False
-
-        log(f"✅ Đã lấy được mã xác minh: {code}")
-
-        # Tìm ô nhập code và điền vào
-        try:
-            udid = self.udid if hasattr(self, 'udid') else None
-            if udid:
-                subprocess.call(["adb", "-s", udid, "shell", "input", "text", str(code)])
-                log("✅ Đã dán mã xác minh bằng ADB input text")
-                time.sleep(3)
-            else:
-                log("⚠️ Không xác định được udid để dán code.")
-        except Exception as e:
-            log(f"❌ Không dán được mã xác minh: {repr(e)}")
-            return False
-        # Nhấn Next sau khi điền code
-        # --- Nhấn Next ---
-        groups = d.find_elements(AppiumBy.CLASS_NAME, "android.view.ViewGroup")
-        clickable_groups = [g for g in groups if g.get_attribute("clickable") == "true"]
-
-        # Lấy center Y của input_box
-        bounds_input = input_box.get_attribute("bounds")
-        nums_input = [int(n) for n in re.findall(r"\d+", bounds_input)]
-        y_input = (nums_input[1] + nums_input[3]) // 2
-
-        # Chọn ViewGroup clickable có center Y > y_input và diff nhỏ nhất (ngay dưới)
-        next_btn = None
-        min_diff = None
-        for g in clickable_groups:
-            try:
-                bounds = g.get_attribute("bounds")
-                nums = [int(n) for n in re.findall(r"\d+", bounds)]
-                y_center = (nums[1] + nums[3]) // 2
-                if y_center > y_input:
-                    diff = y_center - y_input
-                    if min_diff is None or diff < min_diff:
-                        min_diff = diff
-                        next_btn = g
-            except Exception:
-                continue
-
-        if next_btn:
-            next_btn.click()
-            log("👉 Đã bấm 'Next' (ViewGroup ngay dưới ô nhập email)")
-            time.sleep(12)
-        else:
-            log("⛔ Không tìm thấy nút Next (ViewGroup dưới ô nhập email).")
-            return False
-
-        # 6) ================= Nhập Full Name và Password =================
-        pause_event.wait()
-        log("✏️ Bắt đầu điền họ tên và mật khẩu (ADB CMD)...")
-        try:
-            # 📌 Chờ màn hình "Name and Password" xuất hiện
-            time.sleep(5)
-
-            # ======= Sinh họ tên KHÔNG DẤU để ADB gõ được =======
-            ho_list = ["Nguyen", "Tran", "Le", "Pham", "Hoang", "Huynh", "Phan", "Vu", "Vo", "Dang", "Bui", "Do", "Ngo", "Ho", "Duong", "Dinh"]
-            dem_list = ["Van", "Thi", "Minh", "Huu", "Quang", "Thanh", "Thu", "Anh", "Trung", "Phuc", "Ngoc", "Thao", "Khanh", "Tuan", "Hai"]
-            ten_list = ["Hoang", "Ha", "Tu", "Trang", "Linh", "Duy", "Hung", "Tam", "Lan", "Phuong", "Quan", "My", "Long", "Nam", "Vy"]
-
-            full_name = f"{random.choice(ho_list)} {random.choice(dem_list)} {random.choice(ten_list)}"
-            safe_full_name = full_name.replace(" ", "%s")  # đổi khoảng trắng cho adb
-            password = random.choice(string.ascii_uppercase) + ''.join(
-                random.choices(string.ascii_lowercase + string.digits, k=9)
-            )
-
-            udid = self.udid if hasattr(self, 'udid') else None
-            if not udid:
-                log("⛔ Không xác định được UDID thiết bị.")
-                return False
-
-            # ✏️ Tap vào ô Họ tên 2 lần để đảm bảo focus
-            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "400"])
-            time.sleep(1)
-
-            # 📝 Nhập họ tên
-            subprocess.call(["adb", "-s", udid, "shell", "input", "text", safe_full_name])
-            log(f"✅ Đã điền họ tên: {full_name}")
-            time.sleep(1.5)
-
-            # 🔑 Tap vào ô Mật khẩu và nhập
-            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "500", "600"])
-            time.sleep(1)
-            subprocess.call(["adb", "-s", udid, "shell", "input", "text", password])
-            log(f"✅ Đã điền mật khẩu: {password}")
-            time.sleep(1.5)
-
-            # ✅ Ẩn bàn phím để tránh che nút Next
-            subprocess.call(["adb", "-s", udid, "shell", "input", "keyevent", "111"])
-            time.sleep(0.8)
-
-            # 👉 Tap chính giữa nút Next
-            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "900"])
-            log("👉 Đã bấm 'Next' sau khi điền họ tên & mật khẩu.")
-            time.sleep(8)
-
-        except Exception as e:
-            log(f"⚠️ Lỗi khi điền họ tên và mật khẩu bằng ADB: {repr(e)}")
-            return False
-        
-        # 7) ============================== Nhập Tuổi =====================================
-        pause_event.wait()
-        log("✏️ Bắt đầu bỏ qua màn list age")
-        try:
-            # 👉 Tap Next
-            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1700"])
-            log("👉 Đã bấm 'Next")
-            time.sleep(3)
-            
-            # 👉 Tap OK
-            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1100"])
-            log("👉 Đã bấm OK")
-            time.sleep(4)
-
-            # 👉 Tap Enter age
-            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1700"])
-            log("👉 Đã bấm 'Enter age'")
-            time.sleep(7)
-        except Exception as e:
-            log(f"⚠️ Lỗi khi bỏ qua màn hình chọn tuổi: {repr(e)}")
-            return False
-        
-        # 8) =================== Nhập tuổi ngẫu nhiên ===================
-        pause_event.wait()
-        log("✏️ Bắt đầu nhập tuổi ngẫu nhiên (18 - 50)...")
-
-        try:
-            age = random.randint(18, 50)  # random tuổi
-            log(f"✅ Tuổi được chọn: {age}")
-
-            # ✏️ Nhập tuổi
-            subprocess.call(["adb", "-s", udid, "shell", "input", "text", str(age)])
-            log("✅ Đã nhập tuổi thành công!")
-            time.sleep(1.5)
-
-            # 👉 Tap nút Next
-            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "800"])
-            log("👉 Đã bấm 'Next' sau khi nhập tuổi.")
-            time.sleep(15)
-
-        except Exception as e:
-            log(f"⚠️ Lỗi khi nhập tuổi: {repr(e)}")
-            return False
-        
-        # 9) ====================== Ấn Next để hoàn tất ======================
-        pause_event.wait()
-        log("✏️ Bắt đầu Nhấn Next...")
-        try:
-            # 👉 Tap Next
-            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1550"])
-            log("👉 Đã bấm 'Next'")
-            time.sleep(25)
-            log("🎉 Hoàn tất đăng ký Instagram Lite!")
-        except Exception as e:
-            log(f"⚠️ Lỗi khi bỏ ấn next để hoàn tất đăng ký: {repr(e)}")
-            return False
-        # 10) ====================== Ấn Continue để hoàn tất ======================
-        pause_event.wait()
-        log("✏️ Bắt đầu hoàn tất đăng ký...")
-        try:
-            # 👉 Tap Continue
-            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1500"])
-            log("👉 Đã bấm 'Next'")
-            time.sleep(15)
-            log("🎉 Hoàn tất đăng ký Instagram Lite!")
-        except Exception as e:
-            log(f"⚠️ Lỗi khi bỏ ấn next để hoàn tất đăng ký: {repr(e)}")
-            return False
-    
-        # Bật chế độ máy bay và tự chạy lại phiên mới
-        try:
-            adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
-            adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
-            adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
-            adb_shell(self.udid, "svc", "wifi", "disable")
-            adb_shell(self.udid, "svc", "data", "disable")
-            log("🛫 Đã bật Chế độ máy bay (LIVE)")
-        except Exception as e:
-            log(f"⚠️ Lỗi khi bật Chế độ máy bay (LIVE): {e}")
-    
-    # ================================== INSTAGRAM - CHROME ===============================================
-    def signup_instagram_chrome(self):
-        """
-        Mở app Chrome trên thiết bị Android, xử lý các màn hình chào mừng
-        (Continue → More → Got it) rồi truy cập trang đăng ký Instagram.
-        """
-        d = self.driver
-        udid = self.udid
-
-        self.log("🚀 Đang mở Chrome và chờ xử lý màn hình chào mừng...")
-        pkg = "com.android.chrome"
-
-        # Đánh thức màn hình
-        subprocess.call(["adb", "-s", udid, "shell", "input", "keyevent", "224"])
-
-        # Khởi động Chrome
-        try:
-            d.start_activity(pkg, "com.google.android.apps.chrome.Main")
-        except Exception:
-            try:
-                d.activate_app(pkg)
-            except Exception:
-                subprocess.call([
-                    "adb", "-s", udid, "shell", "monkey", "-p", pkg,
-                    "-c", "android.intent.category.LAUNCHER", "1"
-                ])
-
-        self.log("✅ Đã mở Chrome.")
-        time.sleep(20)
-
-        # === Helper: nhấn nút theo text ===
-        def click_button_by_text(driver, texts, timeout=10):
-            end = time.time() + timeout
-            while time.time() < end:
-                for t in texts:
-                    try:
-                        els = driver.find_elements(
-                            AppiumBy.ANDROID_UIAUTOMATOR,
-                            f'new UiSelector().className("android.widget.Button").textContains("{t}")'
-                        )
-                        if els:
-                            els[0].click()
-                            return f"✅ Đã nhấn '{t}'"
-                    except Exception:
-                        pass
-                time.sleep(0.4)
-            return "⚠️ Không tìm thấy nút nào phù hợp"
-
-        # Ấn "Continue" hoặc "Use without an account"
-        self.log("🔍 Đang tìm nút 'Continue' hoặc 'Use without an account' trên Chrome...")
-        try:
-            result = click_button_by_text(d, ["Continue", "Next", "Tiếp tục"])
-            self.log(result)
-
-            if "⚠️" in result or "Không" in result:
-                result2 = click_button_by_text(d, ["Use without an account", "Sử dụng mà không cần tài khoản"])
-                self.log(result2)
-                if "⚠️" not in result2 and "Không" not in result2:
-                    self.log("✅ Đã nhấn 'Use without an account'")
-                else:
-                    self.log("ℹ️ Không tìm thấy 'Continue' hoặc 'Use without an account' — bỏ qua.")
-            else:
-                self.log("✅ Đã nhấn 'Continue'")
-
-            time.sleep(6)
-
-        except Exception as e:
-            self.log(f"⚠️ Lỗi khi xử lý nút 'Continue' hoặc 'Use without an account': {repr(e)}")
-
-        # Ấn "More"
-        self.log("🔍 Đang tìm nút 'More' trên Chrome...")
-        self.log(click_button_by_text(d, ["More", "Thêm", "Next"]))
-        time.sleep(5)
-
-        # Ấn "Got it"
-        self.log("🔍 Đang tìm nút 'Got it' trên Chrome...")
-        self.log(click_button_by_text(d, ["Got it", "Đã hiểu", "OK"]))
-        time.sleep(8)
-
-        # Truy cập trang đăng ký Instagram
-        self.log("🌐 Đang truy cập trang đăng ký Instagram trên Chrome...")
-        try:
-            # 👉 Click vào thanh URL
-            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "200", "250"])
-            time.sleep(1.2)
-
-            # 👉 Gõ địa chỉ trang đăng ký Instagram
-            subprocess.call([
-                "adb", "-s", udid, "shell", "input", "text",
-                "https://www.instagram.com/accounts/emailsignup/"
-            ])
-            time.sleep(1.2)
-
-            # 👉 Nhấn Enter để truy cập
-            subprocess.call(["adb", "-s", udid, "shell", "input", "keyevent", "66"])
-            time.sleep(15)
-
-            self.log("🌐 Đã mở trang đăng ký Instagram trực tiếp trong Chrome.")
-        except Exception as e:
-            self.log(f"⚠️ Không mở được trang đăng ký Instagram: {e}")
-
-        # Ấn "Sign up with email"
-        self.log("📩 Đang tìm nút 'Sign up with email' trên Chrome...")
-        self.log(click_button_by_text(d, ["Sign up with email", "Đăng ký bằng email"]))
-        time.sleep(5)
-
-        # === LẤY EMAIL TẠM VÀ NHẬP VÀO FORM ===
-        self.log("📧 Đang lấy email tạm để đăng ký...")
-
-        # Lấy email tạm từ Phone Settings (TempMailAsia hoặc DropMail)
-        try:
-            try:
-                mode = self.var_mail_src.get().strip().lower()
-            except Exception:
-                mode = "tempasia"
-
-            if mode == "dropmail":
-                email, drop_session_id = get_dropmail_email()
-                source = "dropmail"
-            else:
-                email = get_tempasia_email()
-                drop_session_id = None
-                source = "tempasia"
-
-            if not email:
-                self.log("⛔ Không lấy được email tạm.")
-                return False
-
-            self.log(f"📨 Email tạm lấy từ {source}: {email}")
-        except Exception as e:
-            self.log(f"⚠️ Lỗi khi lấy email tạm: {repr(e)}")
-            return False
-
-        # Điền email vào ô trên Chrome
-        self.log("⌨️ Đang nhập email vào ô đăng ký trên Chrome...")
-        try:
-            # Di chuyển focus xuống vùng nội dung nếu Chrome đang focus thanh tìm kiếm
-            subprocess.call(["adb", "-s", udid, "shell", "input", "keyevent", "61"])  # TAB
-            time.sleep(0.8)
-            subprocess.call(["adb", "-s", udid, "shell", "input", "keyevent", "61"])  # TAB lần nữa tới ô Email
-            time.sleep(0.8)
-            subprocess.call(["adb", "-s", udid, "shell", "input", "text", email])
-            time.sleep(1)
-            self.log("✅ Đã nhập email vào form đăng ký.")
-        except Exception as e:
-            self.log(f"⚠️ Không thể nhập email: {repr(e)}")
-
-        # 👉 Nhấn "Next" để tiếp tục
-        self.log("➡️ Đang tìm và nhấn nút 'Next' trên Chrome...")
-        try:
-            self.log(click_button_by_text(d, ["Next", "Tiếp theo"]))
-            time.sleep(8)
-        except Exception as e:
-            self.log(f"⚠️ Không thể nhấn nút 'Next': {repr(e)}")
-
-        # === XỬ LÝ XÁC NHẬN EMAIL TRONG CHROME ===
-        self.log("📩 Đang xử lý bước xác nhận email trên Instagram...")
-
-        # 1️⃣ Ấn "I didn't get the code"
-        self.log("🔍 Đang tìm nút 'I didn’t get the code'...")
-        self.log(click_button_by_text(d, ["I didn’t get the code", "Tôi không nhận được mã"]))
-        time.sleep(3)
-
-        # 2️⃣ Chọn "Resend confirmation code"
-        self.log("🔍 Đang tìm nút 'Resend confirmation code'...")
-        self.log(click_button_by_text(d, ["Resend confirmation code", "Gửi lại mã xác nhận"]))
-        time.sleep(10)  # chờ email mới tới
-
-        # 3️⃣ Đợi lấy code mail
-        self.log("✏️ Bắt đầu lấy mã xác minh email...")
-        code = None
-        try:
-            if source == "dropmail":
-                code = wait_for_dropmail_code(self, drop_session_id, max_checks=30, interval=3)
-            else:
-                code = wait_for_tempmail_code(email, max_checks=30, interval=2)
-        except Exception as e:
-            self.log(f"⚠️ Lỗi khi lấy mã xác minh email: {repr(e)}")
-            code = None
-
-        if not code:
-            self.log("⛔ Không lấy được mã xác minh từ email.")
-            return False
-
-        self.log(f"✅ Đã lấy được mã xác minh: {code}")
-
-        # 4️⃣ Nhập mã xác minh
-        self.log("⌨️ Đang nhập mã xác minh vào ô trên Chrome...")
-        try:
-            # Rời khỏi thanh tìm kiếm, di chuyển focus xuống ô nhập code
-            subprocess.call(["adb", "-s", udid, "shell", "input", "keyevent", "61"])  # TAB
-            time.sleep(0.8)
-            subprocess.call(["adb", "-s", udid, "shell", "input", "keyevent", "61"])  # TAB lần nữa tới ô Email
-            time.sleep(0.8)
-
-            # Nhập mã xác minh
-            subprocess.call(["adb", "-s", udid, "shell", "input", "text", code])
-            time.sleep(1)
-            subprocess.call(["adb", "-s", udid, "shell", "input", "keyevent", "66"])  # ENTER
-            self.log("✅ Đã nhập mã xác minh vào form.")
-        except Exception as e:
-            self.log(f"⚠️ Không thể nhập mã xác minh: {repr(e)}")
-
-        # 5️⃣ Nhấn "Next"
-        self.log("➡️ Đang tìm và nhấn nút 'Next' sau khi nhập mã...")
-        try:
-            result = click_button_by_text(d, ["Next", "Tiếp theo"])
-            self.log(result)
-            if "⚠️" in result or "Không" in result:
-                self.log("ℹ️ Không tìm thấy nút 'Next' — có thể đã tự chuyển bước, bỏ qua.")
-            else:
-                time.sleep(12)
-        except Exception as e:
-            self.log(f"⚠️ Lỗi khi xử lý nút 'Next': {repr(e)}")
-
-        # 6️⃣ Tạo và nhập mật khẩu
-        self.log("🔐 Đang tạo và nhập mật khẩu ngẫu nhiên...")
-        try:
-            # Tạo mật khẩu chỉ gồm chữ hoa và thường
-            password = ''.join(random.choice(string.ascii_letters) for _ in range(10))
-            self.log(f"✅ Mật khẩu tạo: {password}")
-
-            # Tìm ô nhập password và điền
-            subprocess.call(["adb", "-s", udid, "shell", "input", "text", password])
-            time.sleep(4)
-
-            self.log("✅ Đã nhập mật khẩu vào ô Password.")
-
-            # 👉 Nhấn "Next"
-            self.log("➡️ Đang tìm và nhấn nút 'Next' sau khi nhập mật khẩu...")
-            result = click_button_by_text(d, ["Next", "Tiếp theo"])
-            self.log(result)
-            time.sleep(8)
-
-            if "⚠️" in result or "Không" in result:
-                self.log("ℹ️ Không tìm thấy nút 'Next' — bỏ qua.")
-            else:
-                self.log("✅ Đã nhấn 'Next' thành công.")
-
-        except Exception as e:
-            self.log(f"⚠️ Lỗi khi tạo hoặc nhập mật khẩu: {repr(e)}")
-
-        # 👉 Nhấn "Next" hai lần liên tiếp (Birthday screen)
-        self.log("🎂 Đang ở bước nhập ngày sinh — nhấn 'Next' hai lần...")
-
-        try:
-            # Lần 1
-            result1 = click_button_by_text(d, ["Next", "Tiếp theo"])
-            self.log(result1)
-            time.sleep(2)
-
-            # Lần 2
-            result2 = click_button_by_text(d, ["Next", "Tiếp theo"])
-            self.log(result2)
-            time.sleep(8)
-
-        except Exception as e:
-            self.log(f"⚠️ Lỗi khi nhấn 'Next' hai lần: {repr(e)}")
-
-        # === BƯỚC NHẬP TUỔI VÀ NHẤN NEXT ===
-        self.log("🎂 Đang nhập tuổi ngẫu nhiên và nhấn 'Next'...")
-
-        age = random.randint(18, 50)
-
-        try:
-            # Nhập tuổi
-            subprocess.call(["adb", "-s", udid, "shell", "input", "text", str(age)])
-            time.sleep(3)
-            self.log(f"✅ Đã nhập tuổi: {age}")
-
-            # Nhấn Next
-            self.log("➡️ Đang nhấn 'Next' sau khi nhập tuổi...")
-            self.log(click_button_by_text(d, ["Next", "Tiếp theo"]))
-            time.sleep(6)
-
-        except Exception as e:
-            self.log(f"⚠️ Lỗi khi nhập tuổi và nhấn Next: {repr(e)}")
-
-        # 6️⃣ Nếu xuất hiện popup xác nhận ngày sinh → nhấn OK
-        self.log("📅 Kiểm tra popup xác nhận ngày sinh...")
-        try:
-            result = click_button_by_text(d, ["OK", "Đồng ý"])
-            self.log(result)
-            time.sleep(6)
-        except Exception as e:
-            self.log(f"⚠️ Không thấy popup 'OK' hoặc không thể nhấn: {repr(e)}")
-
-        # === BƯỚC NHẬP HỌ TÊN VÀ NHẤN NEXT ===
-        self.log("🧾 Đang tạo họ tên ngẫu nhiên và nhập vào...")
-
-        # Danh sách họ, tên đệm, tên phổ biến Việt Nam
-        ho = ["Nguyen", "Tran", "Le", "Pham", "Hoang", "Vu", "Vo", "Dang", "Bui", "Do"]
-        ten_dem = ["Van", "Thi", "Ngoc", "Minh", "Duc", "Thanh", "Phuong", "Quoc", "Hong", "Anh"]
-        ten = ["Toan", "Huy", "Linh", "Nam", "Trang", "An", "Nhi", "Tuan", "Thao", "Khanh"]
-
-        fullname = f"{random.choice(ho)} {random.choice(ten_dem)} {random.choice(ten)}"
-        self.log(f"📛 Họ tên được tạo: {fullname}")
-
-        try:
-            # Xử lý khoảng trắng để tránh lỗi adb
-            safe_name = fullname.replace(" ", "\\ ")
-
-            # Nhập tên
-            subprocess.call(["adb", "-s", udid, "shell", "input", "text", safe_name])
-            time.sleep(3)
-            self.log("✅ Đã nhập họ tên vào form.")
-
-            # Nhấn Next
-            self.log("➡️ Đang nhấn 'Next' sau khi nhập tên...")
-            result = click_button_by_text(d, ["Next", "Tiếp theo"])
-            self.log(result)
-            time.sleep(8)
-
-        except Exception as e:
-            self.log(f"⚠️ Lỗi khi nhập họ tên và nhấn Next: {repr(e)}")
-
-        # === BƯỚC TẠO USERNAME TỪ FULLNAME ===
-        self.log("👤 Đang ấn Next ở bước USERNAME...")
-
-        try:
-            # Nhấn Next
-            self.log(click_button_by_text(d, ["Next", "Tiếp theo"]))
-            time.sleep(8)
-            self.log("✅ Đã ấn Next ở bước USERNAME.")
-        except Exception as e:
-            self.log(f"⚠️ Lỗi khi nhập username và nhấn Next: {repr(e)}")
-
-        # === BƯỚC ĐỒNG Ý CHÍNH SÁCH ===
-        self.log("📜 Đang tìm và nhấn 'I agree' để đồng ý điều khoản...")
-        try:
-            result = click_button_by_text(d, ["I agree", "Tôi đồng ý"])
-            self.log(result)
-            time.sleep(25)
-        except Exception as e:
-            self.log(f"⚠️ Lỗi khi nhấn 'I agree': {repr(e)}")
-
-        return
     # ================================== DISPATCHER ============================================================
     def run_signup(self):
         app_choice = phone_ig_app_var.get() if "phone_ig_app_var" in globals() else "instagram"
@@ -5620,25 +4820,35 @@ def run_mobile(thread_id=None):
                 
                 time.sleep(2)
 
-                follow_links = [
-                    "https://www.instagram.com/shx_pe06/",
-                    "https://www.instagram.com/shxuy0bel421162._/",
-                    "https://www.instagram.com/ductoan1103/",
-                    "https://www.instagram.com/v.anh.26/",
-                    "https://www.instagram.com/datgia172/",
-                    "https://www.instagram.com/mhai_187/",
-                    "https://www.instagram.com/valentin_otz/",
-                    "https://www.instagram.com/bxyz.ni6/",
-                    "https://www.instagram.com/nhd_305.nh/",
-                    "https://www.instagram.com/ngockem_/",
-                ]
+                    follow_links = [
+                        "https://www.instagram.com/shx_pe06/",
+                        "https://www.instagram.com/wynnieinclouds/",
+                        "https://www.instagram.com/ductoan1103/",
+                        "https://www.instagram.com/nba/",
+                        "https://www.instagram.com/datgia172/",
+                        "https://www.instagram.com/cristiano/",
+                        "https://www.instagram.com/leomessi/",
+                        "https://www.instagram.com/hansara.official/",
+                        "https://www.instagram.com/lilbieber/",
+                        "https://www.instagram.com/ne9av/",
+                        "https://www.instagram.com/joyce.pham1106/",
+                        "https://www.instagram.com/khanhvyccf/",
+                        "https://www.instagram.com/chaubui_/",
+                        "https://www.instagram.com/ngockem_/",
+                        "https://www.instagram.com/kyduyen1311/",
+                        "https://www.instagram.com/baohannguyenxhelia/",
+                        "https://www.instagram.com/linnhhh.m/",
+                        "https://www.instagram.com/loungu/",
+                        "https://www.instagram.com/_choiiii__/",
+                        "https://www.instagram.com/kjmbae/"
+                    ]
 
-                # Lấy số lượng follow từ ô nhập Mobile
-                try:
-                    num_follow = int(mobile_follow_count_entry.get())
-                except:
-                    num_follow = 5
-                num_follow = min(num_follow, len(follow_links))  
+                    # Lấy số lượng follow từ ô nhập
+                    try:
+                        num_follow = int(follow_count_entry.get())
+                    except:
+                        num_follow = 5
+                    num_follow = min(num_follow, len(follow_links))  
 
                 selected_links = random.sample(follow_links, num_follow)
 
@@ -6347,41 +5557,18 @@ def run(thread_id=None):
                     warp_change_ip()
                 time.sleep(8)
                 # Nhấn nút Next nhiều lần nếu còn
-                # Ấn nút Next từng luồng cách nhau 10 giây nếu chạy nhiều luồng
-                if sync_barrier is not None and sync_barrier.parties > 1:
-                    global next_press_lock
+                for i in range(5):
                     try:
-                        next_press_lock
-                    except NameError:
-                        next_press_lock = threading.Lock()
-                    for i in range(5):
-                        with next_press_lock:
-                            try:
-                                next_btn = WebDriverWait(driver, 5).until(
-                                    EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and normalize-space(text())='Next']"))
-                                )
-                                driver.execute_script("arguments[0].click();", next_btn)
-                                time.sleep(5)
-                                log(f"🔁 Ấn nút Next lần {i+1}")
-                                time.sleep(2)
-                            except:
-                                log("✅ Không còn nút Next, tiếp tục quy trình.")
-                                break
-                        # Chờ 10 giây giữa các luồng
-                        time.sleep(18)
-                else:
-                    for i in range(5):
-                        try:
-                            next_btn = WebDriverWait(driver, 5).until(
-                                EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and normalize-space(text())='Next']"))
-                            )
-                            driver.execute_script("arguments[0].click();", next_btn)
-                            time.sleep(5)
-                            log(f"🔁 Ấn nút Next lần {i+1}")
-                            time.sleep(2)
-                        except:
-                            log("✅ Không còn nút Next, tiếp tục quy trình.")
-                            break
+                        next_btn = WebDriverWait(driver, 5).until(
+                            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and normalize-space(text())='Next']"))
+                        )
+                        driver.execute_script("arguments[0].click();", next_btn)
+                        time.sleep(5)
+                        log(f"🔁 Ấn nút Next lần {i+1}")
+                        time.sleep(2)
+                    except:
+                        log("✅ Không còn nút Next, tiếp tục quy trình.")
+                        break
 
                 time.sleep(20)
                 wait_all("Xác minh email", thread_id)
@@ -6473,173 +5660,6 @@ def run(thread_id=None):
 
             except Exception as e:
                 log(f"⚠️ Lỗi khi check live/die: {repr(e)}")
-        except Exception as e:
-            log(f"❌ Lỗi trình duyệt: {repr(e)}")
-            try:
-                release_position(driver)   # ✅ trả chỗ
-                driver.quit()
-            except:
-                pass
-            log("🔄 Đang chạy lại từ đầu sau lỗi trình duyệt...")
-            # Khuyên: gọi continue thay vì run(thread_id) (tránh nhân thread)
-            continue
-        # === BƯỚC 7: Xử lý bật 2FA ===
-        if twofa_var.get():
-            try:
-                pause_event.wait()
-                warp_off()
-                log("🔐 Bắt đầu bật xác thực hai yếu tố (2FA)...")
-                time.sleep(6)
-
-                # Truy cập trang bật 2FA
-                driver.get("https://accountscenter.instagram.com/password_and_security/two_factor/?theme=dark")
-                WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                time.sleep(5)
-
-                # Chọn tài khoản Instagram
-                try:
-                    account_btn = WebDriverWait(driver, 20).until(
-                        EC.element_to_be_clickable((
-                            By.XPATH, "//div[@role='button' and descendant::div[contains(text(),'Instagram')]]"
-                        ))
-                    )
-                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", account_btn)
-                    time.sleep(1)
-                    account_btn.click()
-                    log("✅ Đã chọn tài khoản Instagram")
-                    time.sleep(3)
-                except Exception as e:
-                    log(f"⚠️ Không chọn được tài khoản: {repr(e)}")
-                    return
-
-                # Nhấn nút "Continue"
-                try:
-                    continue_btn = WebDriverWait(driver, 20).until(
-                        EC.presence_of_element_located((
-                            By.XPATH,
-                            "//div[@role='button' and descendant::span[normalize-space(text())='Continue']]"
-                        ))
-                    )
-                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", continue_btn)
-                    time.sleep(3)
-                    driver.execute_script("arguments[0].click();", continue_btn)
-                    log("✅ Đã click nút Continue")
-                    time.sleep(3)
-                except Exception as e:
-                    log(f"❌ Không thể click nút Continue: {repr(e)}")
-                    return
-
-                # Lấy mã 2FA secret
-                try:
-                    span_xpath = "//div[contains(@class,'x16grhtn')]//span"
-                    span_elem = WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.XPATH, span_xpath))
-                    )
-                    two_fa_code = span_elem.text.strip().replace(" ", "")
-                    log(f"🔐 Mã 2FA secret: {two_fa_code}")
-                except Exception as e:
-                    log(f"❌ Không lấy được mã 2FA secret: {repr(e)}")
-                    return
-                time.sleep(3)
-                # Nhấn nút Next để chuyển tới nhập mã OTP
-                try:
-                    next_btn = WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((
-                            By.XPATH, "//div[@role='button' and descendant::span[normalize-space(text())='Next']]"
-                        ))
-                    )
-                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_btn)
-                    time.sleep(1)
-                    driver.execute_script("arguments[0].click();", next_btn)
-                    log("✅ Đã nhấn nút Next để nhập mã OTP")
-                    time.sleep(3)
-                except Exception as e:
-                    log(f"❌ Không nhấn được nút Next sau mã secret: {repr(e)}")
-                    return
-
-                # Sinh mã OTP từ mã secret bằng pyotp
-                otp_code = None
-                try:
-                    totp = pyotp.TOTP(two_fa_code)
-                    otp_code = totp.now()
-                    log(f"🔢 Mã OTP tạo từ pyotp: {otp_code}")
-                except Exception as e:
-                    log(f"❌ Lỗi khi tạo OTP từ pyotp: {repr(e)}")
-                    return
-                time.sleep(3)
-                # Nhập mã OTP vào ô nhập
-                if otp_code:
-                    try:
-                        otp_input = WebDriverWait(driver, 10).until(
-                            EC.presence_of_element_located((By.XPATH, "//input[@type='text' and @maxlength='6']"))
-                        )
-                        otp_input.clear()
-                        otp_input.send_keys(otp_code)
-                        log("✅ Đã nhập mã OTP.")
-                        time.sleep(2)
-                    except Exception as e:
-                        log(f"❌ Lỗi khi nhập OTP: {repr(e)}")
-                    # Nhấn nút Next cuối cùng để hoàn tất bật 2FA
-                    try:
-                        driver.execute_script("""
-                            [...document.querySelectorAll("div[role='button']")].forEach(el => {
-                                if (el.innerText.trim() === 'Next') el.click();
-                            });
-                        """)
-                        log("✅ Đã nhấn nút Next để hoàn tất bật 2FA")
-                        time.sleep(12)
-                        wait_all("Bật 2FA", thread_id)
-                    except Exception as e:
-                        log(f"❌ Lỗi khi nhấn nút Next hoàn tất 2FA: {repr(e)}")
-                        return
-                    driver.execute_script("""
-                    const btn = [...document.querySelectorAll("button, div[role=button]")]
-                        .find(el => el.textContent.trim() === "Done");
-
-                    if (btn) {
-                        btn.click();
-                        return true;
-                    } else {
-                        return false;
-                    }
-                    """)
-            except Exception as e:
-                log(f"❌ Lỗi toàn bộ bước bật 2FA: {repr(e)}")
-            time.sleep(3)
-
-        # === Insert vào Treeview ===
-        tree_item_id = None
-        try:
-            status_tag = "LIVE" if status_text.lower() == "live" else "DIE"
-            phone_val = locals().get("phone", "")
-            token_val = locals().get("token", "")
-
-            tree_item_id = insert_to_tree(status_text, username, password, email, cookie_str, locals().get("two_fa_code", ""))
-            log(f"✅ [Desktop] Đã thêm vào TreeView với ID: {tree_item_id}")
-        except Exception as e:
-            log(f"⚠️ Không thể thêm vào Treeview: {repr(e)}")
-
-        # === LƯU THÔNG TIN ===
-        try:
-            file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Live.txt")
-
-            info_map = {
-                "Username": username,
-                "Pass": password,
-                "Mail": email,
-                "Cookie": cookie_str if 'cookie_str' in locals() else '',
-                "2FA": two_fa_code if 'two_fa_code' in locals() else '',
-            }
-
-            # dùng trực tiếp save_format từ UI
-            line = "|".join([info_map.get(field, "") for field in save_format])
-
-            with open(file_path, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
-
-            log(f"💾 Đã lưu thông tin vào '{file_path}'")
-        except Exception as e:
-            log(f"❌ Lỗi khi lưu file: {repr(e)}")
 
         # === BƯỚC 5: Follow ===
         if follow_var.get():
@@ -6649,25 +5669,35 @@ def run(thread_id=None):
                 log("🚀 [Desktop] Bắt đầu follow các link...")
                 time.sleep(3)
 
-                follow_links = [
-                    "https://www.instagram.com/shx_pe06/",
-                    "https://www.instagram.com/shxuy0bel421162._/",
-                    "https://www.instagram.com/ductoan1103/",
-                    "https://www.instagram.com/v.anh.26/",
-                    "https://www.instagram.com/datgia172/",
-                    "https://www.instagram.com/mhai_187/",
-                    "https://www.instagram.com/valentin_otz/",
-                    "https://www.instagram.com/bxyz.ni6/",
-                    "https://www.instagram.com/nhd_305.nh/",
-                    "https://www.instagram.com/ngockem_/",
-                ]
+                    follow_links = [
+                        "https://www.instagram.com/shx_pe06/",
+                        "https://www.instagram.com/wynnieinclouds/",
+                        "https://www.instagram.com/ductoan1103/",
+                        "https://www.instagram.com/nba/",
+                        "https://www.instagram.com/datgia172/",
+                        "https://www.instagram.com/cristiano/",
+                        "https://www.instagram.com/leomessi/",
+                        "https://www.instagram.com/hansara.official/",
+                        "https://www.instagram.com/lilbieber/",
+                        "https://www.instagram.com/ne9av/",
+                        "https://www.instagram.com/joyce.pham1106/",
+                        "https://www.instagram.com/khanhvyccf/",
+                        "https://www.instagram.com/chaubui_/",
+                        "https://www.instagram.com/ngockem_/",
+                        "https://www.instagram.com/kyduyen1311/",
+                        "https://www.instagram.com/baohannguyenxhelia/",
+                        "https://www.instagram.com/linnhhh.m/",
+                        "https://www.instagram.com/loungu/",
+                        "https://www.instagram.com/_choiiii__/",
+                        "https://www.instagram.com/kjmbae/"
+                    ]
 
-                # Lấy số lượng follow từ ô nhập Desktop
-                try:
-                    num_follow = int(desktop_follow_count_entry.get())
-                except:
-                    num_follow = 5
-                num_follow = min(num_follow, len(follow_links))  
+                    # Lấy số lượng follow từ ô nhập
+                    try:
+                        num_follow = int(follow_count_entry.get())
+                    except:
+                        num_follow = 5
+                    num_follow = min(num_follow, len(follow_links))  
 
                 selected_links = random.sample(follow_links, num_follow)
 
@@ -6910,7 +5940,7 @@ def run(thread_id=None):
                 log("💼 [Desktop] Đang bật chế độ chuyên nghiệp (Creator -> Personal blog)...")
                 driver.get("https://www.instagram.com/accounts/convert_to_professional_account/")
                 WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                time.sleep(10)
+                time.sleep(4)
 
                 # 1) Chọn Creator
                 account_type = pro_type_var.get()
@@ -8147,39 +7177,11 @@ tk.Label(app_select_frame, text="APP:", bg="white", font=("ROG Fonts STRIX SCAR"
 ttk.Radiobutton(app_select_frame, text="Instagram", value="instagram",
                 variable=phone_ig_app_var, command=_persist_ig_choice).pack(side="left", padx=4)
 ttk.Radiobutton(app_select_frame, text="Instagram Lite", value="instagram_lite",
-                variable=phone_ig_app_var, command=_persist_ig_choice).pack(side="left", padx=4)
-ttk.Radiobutton(app_select_frame, text="Chrome", value="chrome",
-                variable=phone_ig_app_var, command=_persist_ig_choice).pack(side="left", padx=4)
+                variable=phone_ig_app_var, command=_persist_ig_choice)\
+   .pack(side="left", padx=8, pady=4)
 
-# ======================= MAIL SERVICE =======================
-mail_frame = tk.Frame(phone_settings, bg="white")
-mail_frame.pack(fill="x", padx=PHONE_PADX, pady=(2, PHONE_PADY))
-
-tk.Label(mail_frame, text="MAIL:", bg="white", font=("ROG Fonts STRIX SCAR", 9, "bold")).pack(side="left", padx=(0,8))
-mail_phone_var = tk.StringVar(value="temp")
-tk.Radiobutton(mail_frame, text="temp-mail.asia", variable=mail_phone_var, value="temp", bg="white").pack(side="left", padx=4)
-tk.Radiobutton(mail_frame, text="DropMail.me", variable=mail_phone_var, value="drop", bg="white").pack(side="left", padx=4)
-
-# ======================= JOB (Checkboxes) =======================
-job_frame = tk.Frame(phone_settings, bg="white")
-job_frame.pack(fill="x", padx=PHONE_PADX, pady=(2, PHONE_PADY))
-
-tk.Label(job_frame, text="JOB INSTAGRAM:", bg="white", font=("ROG Fonts STRIX SCAR", 9, "bold")).pack(side="left", padx=(0,8))
-
-enable_2faphone    = tk.BooleanVar(value=False)
-enable_uppost      = tk.BooleanVar(value=False)
-enable_editprofile = tk.BooleanVar(value=False)
-enable_autofollow  = tk.BooleanVar(value=False)
-enable_proaccount  = tk.BooleanVar(value=False)
-
-ttk.Checkbutton(job_frame, text="2FA", variable=enable_2faphone).pack(side="left", padx=4)
-ttk.Checkbutton(job_frame, text="UP POST", variable=enable_uppost).pack(side="left", padx=4)
-ttk.Checkbutton(job_frame, text="EDIT PROFILE", variable=enable_editprofile).pack(side="left", padx=4)
-ttk.Checkbutton(job_frame, text="FOLLOW", variable=enable_autofollow).pack(side="left", padx=4)
-ttk.Checkbutton(job_frame, text="PROFESSIONAL", variable=enable_proaccount).pack(side="left", padx=4)
-
-# ======================= PROFESSIONAL ACCOUNT =======================
-pro_settings_frame = tk.Frame(phone_settings, bg="white")
+# ======================= PROFESSIONAL ACCOUNT SETTINGS (Phone) =======================
+pro_settings_frame = ttk.LabelFrame(phone_settings, text="Professional Account", padding=(6,6), style="TLabelframe")
 pro_settings_frame.pack(fill="x", padx=PHONE_PADX, pady=(2, PHONE_PADY))
 
 tk.Label(pro_settings_frame, text="PRO:", bg="white", font=("ROG Fonts STRIX SCAR", 9, "bold")).pack(side="left", padx=(0,8))

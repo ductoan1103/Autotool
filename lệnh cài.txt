@@ -1,0 +1,1 @@
+python -m pip install -U pillow selenium requests names pygetwindow unidecode pytz pyotp pyperclip appium-python-client psutil
