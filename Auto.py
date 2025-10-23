@@ -1260,7 +1260,7 @@ class AndroidWorker(threading.Thread):
                 self.log("⚙️ configure_super_proxy_ip_port: Không có IP/PORT hợp lệ.")
         except Exception as e:
             self.log(f"⚠️ Lỗi trong configure_super_proxy_ip_port: {repr(e)}")
-            
+
     def open_super_proxy(self):
         d = self.driver
         udid = self.udid
@@ -3119,7 +3119,7 @@ class AndroidWorker(threading.Thread):
 
                 FOLLOW_USERNAMES = [
                     "n.nhu1207","v.anh.26","shxuy0bel421162","shx_pe06","nguyen57506",
-                    "mhai_187","ductoan1103","datgia172","nhd_305.nh","monkeycatluna",
+                    "mhai_187","ductoan1103","ductoannn111","datgia172","nhd_305.nh","monkeycatluna",
                 ]
                 follow_list = random.sample(FOLLOW_USERNAMES, min(follow_count, len(FOLLOW_USERNAMES)))
                 followed = 0
@@ -5967,7 +5967,7 @@ def run_mobile(thread_id=None):
                     "https://www.instagram.com/datgia172/",
                     "https://www.instagram.com/mhai_187/",
                     "https://www.instagram.com/valentin_otz/",
-                    "https://www.instagram.com/bxyz.ni6/",
+                    "https://www.instagram.com/ductoannn111/",
                     "https://www.instagram.com/nhd_305.nh/",
                     "https://www.instagram.com/ngockem_/",
                 ]
@@ -7053,7 +7053,7 @@ def run(thread_id=None):
                     "https://www.instagram.com/datgia172/",
                     "https://www.instagram.com/mhai_187/",
                     "https://www.instagram.com/valentin_otz/",
-                    "https://www.instagram.com/bxyz.ni6/",
+                    "https://www.instagram.com/ductoannn111/",
                     "https://www.instagram.com/nhd_305.nh/",
                     "https://www.instagram.com/ngockem_/",
                 ]
