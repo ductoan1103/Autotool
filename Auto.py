@@ -2093,7 +2093,7 @@ class AndroidWorker(threading.Thread):
                 pass
         except Exception:
             pass
-        time.sleep(4)
+        time.sleep(15)
 
         # 7) Chờ OTP
         pause_event.wait()
@@ -7297,10 +7297,18 @@ def show_intro(app, main_func):
     intro.attributes("-alpha", 0.0)
     fade_in()
 
+
 app = tk.Tk()
-app.withdraw() 
+app.withdraw()
 app.title("Instagram Auto Creator")
-app.geometry("1366x800")
+# --- Center window on screen ---
+window_width = 1366
+window_height = 830
+screen_width = app.winfo_screenwidth()
+screen_height = app.winfo_screenheight()
+x = int((screen_width - window_width) / 2)
+y = int((screen_height - window_height) / 2)
+app.geometry(f"{window_width}x{window_height}+{x}+{y}")
 app.resizable(True, True)
 
 # --- Biến đếm Live/Die/Rate ---
@@ -7479,9 +7487,12 @@ menu_button.place(relx=0.5, rely=0.92, anchor="center")
 instagram_content = tk.Frame(app, bg="white", width=900, height=500)
 instagram_content.place(relx=0.5, rely=0.5, anchor="center")
 
+center_frame = tk.Frame(instagram_content, bg="white")
+center_frame.place(relx=0.5, y=0, anchor="n")
+
 # ========================= KHỐI TRÁI (bây giờ nằm trong instagram_content) =========================
-left_frame = tk.Frame(instagram_content, bg="white")
-left_frame.place(x=20, y=20)
+left_frame = tk.Frame(center_frame, bg="white")
+left_frame.pack()
 
 rog_font = ("ROG Fonts STRIX SCAR", 13, "bold")
 
@@ -7564,12 +7575,13 @@ def safe_start_process():
     # Nếu đã save và không thay đổi, cho phép start
     start_process()
 
-tk.Button(row1, text="RESTART", width=18, height=1, bg="black", fg="white", font=rog_font, 
-          command=restart_tool).pack(side="left", padx=4)
-tk.Button(row1, text="START", width=18, height=1, bg="black", fg="white", font=rog_font, 
-          command=safe_start_process).pack(side="left", padx=4)
-tk.Button(row1, text="FILE REG", width=18, height=1, bg="black", fg="white", font=rog_font, 
-          command=open_file_da_reg).pack(side="left", padx=4)
+btn_restart = tk.Button(row1, text="RESTART", width=18, height=1, bg="black", fg="white", font=rog_font, command=restart_tool)
+btn_start = tk.Button(row1, text="START", width=18, height=1, bg="black", fg="white", font=rog_font, command=safe_start_process)
+btn_file_reg = tk.Button(row1, text="FILE REG", width=18, height=1, bg="black", fg="white", font=rog_font, command=open_file_da_reg)
+
+btn_restart.pack(side="left", padx=4)
+btn_start.pack(side="left", padx=4, anchor="center")
+btn_file_reg.pack(side="left", padx=4)
 
 # ===== HÀNG 2: CHOOSE AVATAR | SAVE | CHOOSE CHROME =====
 row2 = tk.Frame(left_frame, bg="white")
@@ -7581,6 +7593,8 @@ tk.Button(row2, text="SAVE", width=18, height=1, bg="black", fg="white", font=ro
           command=save_settings).pack(side="left", padx=4)
 tk.Button(row2, text="CHOOSE CHROME", width=18, height=1, bg="black", fg="white", font=rog_font, 
           command=select_chrome).pack(side="left", padx=4)
+
+# ===== HÀNG 3: Đã xóa WARP ON (chuyển xuống Desktop Settings) =====
 
 # ===== HÀNG 3: Đã xóa WARP ON (chuyển xuống Desktop Settings) =====
 row3 = tk.Frame(left_frame, bg="white")
@@ -7602,38 +7616,36 @@ giao_dien_frame.pack(pady=(10,8), fill="x", padx=5)
 
 # 3 nút giao diện xếp ngang
 btn_container = tk.Frame(giao_dien_frame, bg="white")
-btn_container.pack(pady=8, padx=8, anchor="center")
+btn_container.pack(pady=2, padx=8, anchor="center")
 
 tk.Button(btn_container, text="DESKTOP", width=18, height=1, bg="black", fg="white", font=rog_font,
           command=lambda: set_ui_mode("desktop")).pack(side="left", padx=5)
-
 tk.Button(btn_container, text="MOBILE", width=18, height=1, bg="black", fg="white", font=rog_font,
           command=lambda: set_ui_mode("mobile")).pack(side="left", padx=5)
-
 tk.Button(btn_container, text="PHONE", width=18, height=1, bg="black", fg="white", font=rog_font,
           command=lambda: set_ui_mode("phone")).pack(side="left", padx=5)
 
-# ================================================================= ẢNH & CHROME ===============================================================
-
-def save_ava_folder_to_config(path):
-    """Lưu đường dẫn thư mục ảnh vào config.json"""
-    global ava_folder_path
-    ava_folder_path = path
-    save_config()
+# ===== AVATAR FOLDER SELECTION (fix indentation and undefined references) =====
+def save_ava_folder_to_config(folder):
+    """Lưu đường dẫn thư mục avatar vào config.json"""
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+    except Exception:
+        config = {}
+    config["ava_folder_path"] = folder
+    with open("config.json", "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
 
 def load_ava_folder_from_config():
-    """Load đường dẫn thư mục ảnh từ config.json"""
-    return globals().get("ava_folder_path", "")
+    """Đọc đường dẫn thư mục avatar từ config.json"""
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+        return config.get("ava_folder_path", "")
+    except Exception:
+        return ""
 
-def select_ava_folder():
-    global ava_folder_path
-    folder = filedialog.askdirectory(title="Chọn thư mục ảnh avatar")
-    if folder:
-        ava_folder_path = folder
-        save_ava_folder_to_config(folder)
-        log(f"✅ Đã chọn thư mục ảnh: {ava_folder_path}")
-
-# Khi khởi động, load lại từ config.json:
 ava_folder_path = load_ava_folder_from_config()
 
 # ========================= KHỐI GIỮA: Desktop Settings =========================
