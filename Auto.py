@@ -5059,7 +5059,7 @@ def start_process():
         tree_frame = tk.LabelFrame(main_frame, text="Accounts", bg="white", font=("Arial", 10, "bold"))
         tree_frame.pack(side="top", fill="both", expand=True, padx=5, pady=(0,5))
 
-        cols = ["STT","TRẠNG THÁI","USERNAME","PASS","MAIL","PHONE","COOKIE","2FA","TOKEN","IP","PROXY","LIVE","DIE","FOLLOW","POST","AVATAR","GENDER","BIO","PROFESSIONAL"]
+        cols = ["STT","TRẠNG THÁI","USERNAME","PASS","MAIL","PHONE","COOKIE","2FA","IP","PROXY","LIVE","DIE","FOLLOW","POST","AVATAR","GENDER","BIO","PROFESSIONAL"]
         global tree
         tree = ttk.Treeview(tree_frame, columns=cols, show="headings", height=12)
         vsb = ttk.Scrollbar(tree_frame, orient="vertical",   command=tree.yview);  tree.configure(yscrollcommand=vsb.set); vsb.pack(side="right",  fill="y")
@@ -5207,6 +5207,7 @@ def start_process():
         thread_list.append(t)
         time.sleep(1)
 
+# ============== Email temp-mail.asia ==============
 def get_tempasia_email():
     url = "https://free.priyo.email/api/random-email/7jkmE5NM2VS6GqJ9pzlI"
     headers = {"accept": "application/json"}
@@ -5244,6 +5245,7 @@ def wait_for_tempmail_code(email, max_checks=30, interval=2):
         time.sleep(interval)
     return None
 
+# ============== Email DropMail.me ==============
 def get_dropmail_email():
     url = "https://dropmail.me/api/graphql/my_token_123"
     query = """
@@ -6598,28 +6600,52 @@ def run(thread_id=None):
             driver.find_element(By.XPATH, "//button[@type='submit']").click()
             log("➡️ Đã ấn Tiếp theo")
             time.sleep(get_delay("Next_sleep", 2))
-
-            # === KIỂM TRA: Có chuyển sang màn chọn ngày sinh không? ===
-            try:
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.XPATH, "//select[@title='Month:']"))
-                )
-                log("✅ Đã chuyển sang màn chọn ngày sinh.")
-            except Exception as e:
-                log(f"❌ Không chuyển sang màn chọn ngày sinh sau khi Next. Lỗi: {repr(e)}")
-                log("🔁 Đóng phiên và restart lại từ đầu...")
-                try:
-                    if is_warp_mode():
-                        warp_off()
-                    time.sleep(2)
-                    release_position(driver)
-                    driver.quit()
-                except:
-                    pass
-                continue  # Restart phiên trong cùng luồng
+            
+            # Chỉ áp dụng khi chọn mạng WARP
+            if network_mode_var.get() == "warp":
+                success = False
+                for attempt in range(2):  # thử tối đa 2 lần (lần 2 sau khi đổi IP)
+                    try:
+                        WebDriverWait(driver, 10).until(
+                            EC.presence_of_element_located((By.XPATH, "//select[@title='Month:']"))
+                        )
+                        log("✅ Đã chuyển sang màn chọn ngày sinh.")
+                        success = True
+                        break
+                    except Exception as e:
+                        if attempt == 0:
+                            log(f"❌ Không chuyển sang màn chọn ngày sinh sau khi Next. Đang đổi IP WARP và thử lại...")
+                            if is_warp_mode():
+                                warp_change_ip()
+                                log("🌐 Đã đổi IP WARP, chờ 10 giây...")
+                                time.sleep(10)
+                            try:
+                                driver.find_element(By.XPATH, "//button[@type='submit']").click()
+                                log("➡️ Đã thử lại ấn Tiếp theo sau khi đổi IP WARP")
+                                time.sleep(get_delay("Next_sleep", 2))
+                                time.sleep(4)
+                            except Exception as e2:
+                                log(f"❌ Lỗi khi thử lại ấn Tiếp theo: {repr(e2)}")
+                        else:
+                            log(f"❌ Vẫn không chuyển được sang màn ngày sinh sau khi đổi IP WARP: {repr(e)}")
+                if not success:
+                    log("🔁 Đóng phiên và restart lại từ đầu...")
+                    try:
+                        if is_warp_mode():
+                            warp_off()
+                        time.sleep(2)
+                        release_position(driver)
+                        driver.quit()
+                    except:
+                        pass
+                    continue  # Restart phiên trong cùng luồng
 
             # === BƯỚC 2: chọn ngày sinh ===
             pause_event.wait()
+            if is_warp_mode():
+                log("🌐 Đang tắt WARP trước khi chọn ngày sinh...")
+                warp_off()
+                time.sleep(3)
             log("📅 Đang chờ phần chọn ngày sinh...")
             WebDriverWait(driver, 15).until(
                 EC.presence_of_element_located((By.XPATH, "//select[@title='Month:']"))
