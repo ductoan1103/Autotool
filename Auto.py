@@ -2399,8 +2399,7 @@ class AndroidWorker(threading.Thread):
                 uname_input.send_keys(username_new)
                 log(f"👤 Username mới: {username_new}")
                 self.username = username_new
-            else:
-                log("⚠️ Không tìm thấy ô nhập username.")
+            # Nếu không tìm thấy ô nhập username thì bỏ qua, không log lỗi
 
             # Đọc lại username sau khi điền (Instagram có thể tự đổi nếu trùng)
             uname_final = None
@@ -2416,21 +2415,7 @@ class AndroidWorker(threading.Thread):
                 EC.element_to_be_clickable((AppiumBy.XPATH, '//*[@text="Next" or @text="Tiếp"]'))
             ).click()
         except Exception as e:
-            log(f"⚠️ Lỗi ở bước username: {e}")
-            try:
-                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
-                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
-                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE_CHANGED", "--ez", "state", "true")
-                adb_shell(self.udid, "svc", "wifi", "disable")
-                adb_shell(self.udid, "svc", "data", "disable")
-                log("🛫 Đã bật Chế độ máy bay (Lỗi)")
-            except Exception as e2:
-                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lỗi): {e2}")
-            self.log("🔄 Restart phiên vì Lỗi…")
-            self.stop()
-            time.sleep(3)
-            AndroidWorker(self.udid, log_fn=self.log).start()
-            return
+            pass  # Nếu không tìm thấy ô nhập username thì bỏ qua, không log lỗi, không dừng, cho phép chạy tiếp các bước sau
         time.sleep(5)
 
         # 14) Terms & Policies + spam Next cho tới khi xong
