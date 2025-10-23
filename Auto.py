@@ -2093,7 +2093,7 @@ class AndroidWorker(threading.Thread):
                 pass
         except Exception:
             pass
-        time.sleep(15)
+        time.sleep(7)
 
         # 7) Chờ OTP
         pause_event.wait()
@@ -2123,19 +2123,63 @@ class AndroidWorker(threading.Thread):
 
         # 8) Điền OTP + Next
         pause_event.wait()
-        try:
-            code_input = WebDriverWait(d, 12).until(
-                EC.presence_of_element_located((AppiumBy.CLASS_NAME, "android.widget.EditText"))
-            )
-            code_input.clear(); code_input.send_keys(code)
-            log(f"✅ OTP: {code}")
+        otp_success = False
+        for retry_otp in range(3):
             try:
-                WebDriverWait(d, 5).until(
-                    EC.element_to_be_clickable((AppiumBy.XPATH, '//*[@text="Next" or @text="Tiếp"]'))
-                ).click()
+                code_input = WebDriverWait(d, 12).until(
+                    EC.presence_of_element_located((AppiumBy.CLASS_NAME, "android.widget.EditText"))
+                )
+                code_input.clear(); code_input.send_keys(code)
+                log(f"✅ OTP: {code}")
+                try:
+                    WebDriverWait(d, 5).until(
+                        EC.element_to_be_clickable((AppiumBy.XPATH, '//*[@text="Next" or @text="Tiếp"]'))
+                    ).click()
+                except Exception:
+                    pass
+                time.sleep(3)
+                # Kiểm tra lỗi mã xác nhận không hợp lệ
+                error_msg = None
+                try:
+                    error_msg = d.find_element(AppiumBy.XPATH, '//*[contains(@text, "code isn\'t valid") or contains(@text, "code not valid") or contains(@text, "That code isn\'t valid") or contains(@text, "That code is not valid") or contains(@text, "You can request a new one.")]')
+                except Exception:
+                    error_msg = None
+                if error_msg:
+                    log("❌ Mã xác nhận không hợp lệ, thử lại lấy mã mới...")
+                    # Bấm nút resend code nếu có
+                    try:
+                        btn = WebDriverWait(d, 8).until(
+                            EC.element_to_be_clickable((
+                                AppiumBy.XPATH, '//*[@text="I didn’t get the code" or @text="I didn\'t get the code"]'
+                            ))
+                        )
+                        btn.click(); log("🔁 I didn’t get the code")
+                        try:
+                            WebDriverWait(d, 8).until(
+                                EC.element_to_be_clickable((AppiumBy.XPATH, '//*[@text="Resend confirmation code"]'))
+                            ).click()
+                            log("🔁 Resend confirmation code")
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                    time.sleep(7)
+                    # Lấy lại mã OTP mới
+                    code = None
+                    try:
+                        if source == "dropmail":
+                            code = wait_for_dropmail_code(drop_session_id, max_checks=30, interval=3)
+                        else:
+                            code = wait_for_tempmail_code(email, max_checks=30, interval=2)
+                    except Exception as e:
+                        log(f"⚠️ Lỗi chờ OTP: {repr(e)}")
+                    continue  # thử lại nhập mã mới
+                else:
+                    otp_success = True
+                    break
             except Exception:
                 pass
-        except Exception:
+        if not otp_success:
             try:
                 adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
                 adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
@@ -2150,7 +2194,6 @@ class AndroidWorker(threading.Thread):
             time.sleep(3)
             AndroidWorker(self.udid, log_fn=self.log).start()
             return
-        time.sleep(5)
 
         # 9) Password
         pause_event.wait()
