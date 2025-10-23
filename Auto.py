@@ -82,6 +82,7 @@ from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver import ActionChains
+from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import ElementClickInterceptedException
 from tkinter import ttk
 import requests
@@ -4297,6 +4298,7 @@ def _sync_mode_ui():
     _set_container_enabled(mobile_settings,  enabled=(mode == "mobile"))
     _set_container_enabled(phone_settings,   enabled=(mode == "phone"))
 
+# --- Lấy kích thước và scale Chrome DESKTOP ---
 def get_chrome_size(default_w=1200, default_h=800):
     """Lấy kích thước Chrome cho Desktop"""
     try:
@@ -4312,37 +4314,46 @@ def get_chrome_size(default_w=1200, default_h=800):
 def get_chrome_scale(default=1.0):
     """Lấy scale Chrome cho Desktop"""
     try:
-        s = int(desktop_entry_scale.get().strip())
+        val = desktop_entry_scale.get().strip()
+        if not val.isdigit():
+            desktop_entry_scale.delete(0, tk.END)
+            desktop_entry_scale.insert(0, "100")
+            s = 100
+        else:
+            s = int(val)
+        if s < 50: s = 50
+        if s > 300: s = 300
+        return s / 100.0
+    except:
+        return default
+
+# --- Lấy kích thước và scale Chrome MOBILE ---
+def get_chrome_size_mobile(default_w=375, default_h=667):
+    """Lấy kích thước Chrome cho Mobile"""
+    try:
+        w = int(mobile_entry_width.get().strip())
+        h = int(mobile_entry_height.get().strip())
+        # giới hạn tối thiểu để tránh lỗi
+        if w < 400: w = 400
+        if h < 300: h = 300
+        return w, h
+    except:
+        return default_w, default_h
+
+def get_chrome_scale_mobile(default=1.0):
+    """Lấy scale Chrome cho Mobile"""
+    try:
+        s = int(mobile_entry_scale.get().strip())
         if s < 50: s = 50    # tối thiểu 50%
         if s > 300: s = 300  # tối đa 300%
         return s / 100.0     # chuyển % thành số thực
     except:
         return default
-
-# --- thêm cho đồng bộ luồng ---
-sync_barrier = None    # sẽ là threading.Barrier được tạo khi START
-barrier_timeout = 60   # thời gian chờ (giây) trước khi timeout
-thread_list = []       # (tùy chọn) lưu các Thread để quản lý
-
-def wait_all(step_name, thread_id):
-    """
-    Chờ tất cả các luồng đạt tới checkpoint 'step_name' rồi tiếp tục.
-    Nếu barrier bị timeout/broken thì sẽ log và tiếp tục để tránh treo.
-    """
-    if sync_barrier is not None:
-        try:
-            log(f"⏳ [Luồng {thread_id}] Chờ tất cả tại bước: {step_name} (timeout {barrier_timeout}s)...")
-            sync_barrier.wait(timeout=barrier_timeout)
-            log(f"🚀 [Luồng {thread_id}] Tất cả luồng đã hoàn thành bước: {step_name}")
-        except threading.BrokenBarrierError:
-            log(f"⚠️ [Luồng {thread_id}] Barrier timeout/broken ở bước: {step_name}, tiếp tục.")
-    else:
-        log(f"⚠️ [Luồng {thread_id}] sync_barrier chưa được tạo — bỏ qua đồng bộ bước: {step_name}")
-
+    
+# --- quản lý driver và tạm dừng luồng ---
 all_drivers = []
 pause_event = threading.Event()
 pause_event.set()  # Mặc định là “cho phép chạy”
-
 warp_enabled = True
 proxy_entry = None
 
@@ -5355,14 +5366,76 @@ def run_mobile(thread_id=None):
             else:
                 log(f"🌐 [Mobile] WARP tắt → proxy: {proxy or 'No proxy'}")
 
-            driver = build_mobile_chrome_driver(proxy)
-            wait = WebDriverWait(driver, 15)
+                # Tạo Chrome Mobile riêng biệt, không dùng chung với desktop
+                chrome_path   = globals().get("chrome_path", "")
+                warp_enabled  = bool(globals().get("warp_enabled", False))
+                all_drivers   = globals().get("all_drivers", None)
+                arrange_after = globals().get("arrange_after_open", None)
 
-            # Đến trang mobile signup (đúng theo giao diện mobile)
-            driver.get("https://www.instagram.com/accounts/signup/email/")
-            pause_event.wait()
-            log("🌐 [Mobile] Đã truy cập trang đăng ký (Mobile).")
-            time.sleep(3)
+                mobile_options = Options()
+                mobile_options.add_argument("--disable-blink-features=AutomationControlled")
+                mobile_options.add_argument("--no-first-run")
+                mobile_options.add_argument("--disable-background-networking")
+                mobile_options.add_argument("--disable-background-timer-throttling")
+                mobile_options.add_argument("--disable-client-side-phishing-detection")
+
+                # Thêm headless nếu được chọn (riêng biệt cho mobile)
+                try:
+                    if globals().get("hidden_chrome_var") and hidden_chrome_var.get():
+                        try:
+                            mobile_options.add_argument("--headless=new")
+                        except Exception:
+                            mobile_options.add_argument("--headless")
+                        mobile_options.add_argument("--disable-gpu")
+                        mobile_options.add_argument("--disable-dev-shm-usage")
+                        mobile_options.add_argument("--no-sandbox")
+                        mobile_options.add_argument("--window-size=390,844")
+                        log("ℹ️ [Mobile] Chạy Chrome ở chế độ Ẩn (headless).")
+                except Exception:
+                    pass
+
+                # Emulate iPhone 15 Pro (UA + viewport)
+                try:
+                    mobile_width = int(entry_width_m.get()) if entry_width_m and entry_width_m.get() else 390
+                    mobile_height = int(entry_height_m.get()) if entry_height_m and entry_height_m.get() else 844
+                except:
+                    mobile_width = 390
+                    mobile_height = 844
+                mobile_emulation = {
+                    "deviceMetrics": {"width": mobile_width, "height": mobile_height, "pixelRatio": 3.0},
+                    "userAgent": (
+                        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
+                        "AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/137.0.0.0 "
+                        "Mobile/15E148 Safari/604.1"
+                    )
+                }
+                mobile_options.add_experimental_option("mobileEmulation", mobile_emulation)
+
+                # Proxy: chỉ áp nếu không bật WARP (PC) và có proxy
+                if not warp_enabled and proxy:
+                    if "://" not in proxy:
+                        proxy = f"http://{proxy}"
+                    mobile_options.add_argument(f"--proxy-server={proxy}")
+
+                # Nếu người dùng đã chọn binary chrome
+                if chrome_path:
+                    mobile_options.binary_location = chrome_path
+
+                # Chromedriver:
+                driver_path = os.path.join(os.getcwd(), "chromedriver.exe")
+                if os.path.isfile(driver_path):
+                    service = Service(driver_path)
+                else:
+                    service = Service()  # dùng chromedriver trong PATH
+
+                driver = se_webdriver.Chrome(service=service, options=mobile_options)
+                wait = WebDriverWait(driver, 15)
+
+                # Đến trang mobile signup (đúng theo giao diện mobile)
+                driver.get("https://www.instagram.com/accounts/signup/email/")
+                pause_event.wait()
+                log("🌐 [Mobile] Đã truy cập trang đăng ký (Mobile).")
+                time.sleep(3)
         except Exception as e:
             log(f"❌ [Mobile] Lỗi khởi tạo trình duyệt: {repr(e)}")
             try:
@@ -5479,9 +5552,6 @@ def run_mobile(thread_id=None):
             time.sleep(get_mobile_delay("Code_sleep", 2))
 
             # NEXT sau code
-            if warp_enabled:
-                warp_change_ip()
-                time.sleep(8)
             try:
                 next_btn = wait.until(EC.element_to_be_clickable(
                     (By.CSS_SELECTOR, 'div[role="button"][aria-label="Next"]')))
@@ -5500,9 +5570,6 @@ def run_mobile(thread_id=None):
 
         # 7) Nhập Password → Next qua vài bước
         pause_event.wait()
-        if is_warp_mode():
-            warp_off()
-            time.sleep(3)
         try:
             # 7) Nhập Password → Next
             pass_input = wait.until(EC.presence_of_element_located(
@@ -5793,7 +5860,6 @@ def run_mobile(thread_id=None):
                         """)
                         log("✅ Đã nhấn nút Next để hoàn tất bật 2FA")
                         time.sleep(12)
-                        wait_all("Bật 2FA", thread_id)
                     except Exception as e:
                         log(f"❌ Lỗi khi nhấn nút Next hoàn tất 2FA: {repr(e)}")
                         return
@@ -5928,8 +5994,6 @@ def run_mobile(thread_id=None):
 
             except Exception as e:
                 log(f"❌ Lỗi trong quá trình follow: {repr(e)}")
-                # Bỏ đồng bộ luồng cho Mobile
-                # wait_all("Follow", thread_id)
 
         # === BƯỚC 6: Upload avatar ở giao diện mobile ===
         pause_event.wait()
@@ -6315,6 +6379,17 @@ def run(thread_id=None):
         options = Options()
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--start-maximized")
+        # Lấy scale và kích thước từ settings
+        scale = get_chrome_scale()
+        try:
+            w, h = get_chrome_size()
+        except Exception:
+            w, h = 1200, 800
+        # Nếu scale khác 1, nhân kích thước lên
+        if scale != 1.0:
+            w = int(w * scale)
+            h = int(h * scale)
+        options.add_argument(f"--window-size={w},{h}")
 
         # Nếu user bật Ẩn Chrome -> chạy headless và set một số flag/size
         is_headless = False
@@ -6358,25 +6433,51 @@ def run(thread_id=None):
             pass
 
         driver.get("https://www.instagram.com/accounts/emailsignup/")
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.NAME, "emailOrPhone"))
-        )
+        try:
+            WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.NAME, "emailOrPhone"))
+            )
+        except Exception as e:
+            log(f"❌ Lỗi khi mở trang signup (wait emailOrPhone): {repr(e)} — đóng phiên và restart...")
+            try:
+                if is_warp_mode():
+                    warp_off()
+            except:
+                pass
+            try:
+                release_position(driver)
+            except:
+                pass
+            try:
+                driver.quit()
+            except:
+                pass
+            continue
+
+        # Áp dụng scale từ settings sau khi mở trang
+        driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
         log(f"✅ [Luồng {thread_id}] Chrome đã mở xong và trang Instagram sẵn sàng.")
         time.sleep(3)
-        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.NAME, "emailOrPhone")))
-        log(f"✅ [Luồng {thread_id}] Chrome đã mở xong và trang Instagram sẵn sàng.")
-        # === ĐỒNG BỘ: chờ tất cả luồng sẵn sàng ===
         try:
-            if sync_barrier is not None:
-                try:
-                    log(f"⏳ [Luồng {thread_id}] Đang chờ các luồng khác (timeout {barrier_timeout}s)...")
-                    sync_barrier.wait(timeout=barrier_timeout)
-                    log(f"🚀 [Luồng {thread_id}] Tất cả luồng đã sẵn sàng. Bắt đầu đồng loạt.")
-                except threading.BrokenBarrierError:
-                    log(f"⚠️ [Luồng {thread_id}] Barrier timeout/broken, tiếp tục.")
-            else:
-                log(f"⚠️ [Luồng {thread_id}] sync_barrier chưa được tạo — tiếp tục luôn.")
-
+            WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.NAME, "emailOrPhone")))
+        except Exception as e:
+            log(f"❌ Lỗi sau khi apply scale (wait emailOrPhone): {repr(e)} — đóng phiên và restart...")
+            try:
+                if is_warp_mode():
+                    warp_off()
+            except:
+                pass
+            try:
+                release_position(driver)
+            except:
+                pass
+            try:
+                driver.quit()
+            except:
+                pass
+            continue
+        log(f"✅ [Luồng {thread_id}] Chrome đã mở xong và trang Instagram sẵn sàng.")
+        try:
             # =========== Điền Thông tin USER-PASS-MAIL-FULLNAME (DESKTOP) ==============
             time.sleep(2)
             type_text_slowly(
@@ -6384,44 +6485,64 @@ def run(thread_id=None):
                 email,
                 delay=get_delay("Mail_type", 0.18)
             )
+            log("✍️ Đã nhập email vào form đăng ký")
             time.sleep(get_delay("Mail_sleep", 1))
             type_text_slowly(
                 driver.find_element(By.NAME, "password"),
                 password,
                 delay=get_delay("Pass_type", 0.18)
             )
+            log("✍️ Đã nhập mật khẩu vào form đăng ký")
             time.sleep(get_delay("Pass_sleep", 3))
             type_text_slowly(
                 driver.find_element(By.NAME, "fullName"),
                 full_name,
                 delay=get_delay("Họ Tên_type", 0.18)
             )
+            log(f"✍️ Đã nhập họ tên vào form đăng ký: {full_name}")
             time.sleep(get_delay("Họ Tên_sleep", 2))
+
+            # --- Xóa hết username cũ ---
+            log("🧹 Đang xóa username cũ khỏi form đăng ký...")
+            username_elem = driver.find_element(By.NAME, "username")
+            username_elem.click()
+            time.sleep(0.2)
+            username_elem.send_keys(Keys.CONTROL, "a")
+            time.sleep(0.1)
+            username_elem.send_keys(Keys.DELETE)
+            time.sleep(0.2)
+
+            # --- Tạo lại username từ họ tên, random vị trí dấu '_' và '.' và số cuối ---
+            log(f"🔄 Đang tạo lại username từ họ tên: {full_name}")
+            def make_username(full_name):
+                # Loại bỏ ký tự đặc biệt, chuyển về không dấu, thường
+                base = re.sub(r'[^a-z0-9 ]', '', unidecode(full_name.lower()))
+                parts = base.split()
+                if len(parts) < 2:
+                    parts.append('user')
+                # Ghép các phần lại, random dấu giữa các phần
+                username_core = parts[0]
+                for p in parts[1:]:
+                    sep = random.choice(['_', '.', ''])
+                    username_core += sep + p
+                # Thêm số random cuối cùng
+                username_core += '_' + str(random.randint(1000, 99999))
+                return username_core
+
+            username_new = make_username(full_name)
+            log(f"🔤 Username mới tạo: {username_new}")
+
+            # --- Nhập username mới ---
+            log(f"✍️ Đang nhập username mới vào form đăng ký: {username_new}")
             type_text_slowly(
-                driver.find_element(By.NAME, "username"),
-                username,
+                username_elem,
+                username_new,
                 delay=get_delay("Username_type", 0.18)
             )
+
             time.sleep(get_delay("Username_sleep", 3))
-            time.sleep(2)
-            driver.execute_script("""
-                document.querySelectorAll('button[type="button"]').forEach(el => {
-                    if (el.innerText.trim() === "Refresh suggestion") {
-                        el.click();
-                        console.log("✅ Đã click nút Refresh suggestion");
-                    }
-                });
-            """)
-            time.sleep(2)
-            driver.execute_script("""
-                document.querySelectorAll('button[type="button"]').forEach(el => {
-                    if (el.innerText.trim() === "Refresh suggestion") {
-                        el.click();
-                        console.log("✅ Đã click nút Refresh suggestion");
-                    }
-                });
-            """)
-            time.sleep(2)
+            time.sleep(4)
+
             try:
                 new_username = driver.find_element(By.NAME, "username").get_attribute("value") or username
                 if new_username != username:
@@ -6431,9 +6552,10 @@ def run(thread_id=None):
                     log("ℹ️ Username không đổi sau 2 lần refresh.")
             except Exception as e:
                 log(f"⚠️ Không đọc được username sau refresh: {e}")
+
             log("✅ Đã điền xong form đăng ký")
 
-            wait_all("Điền form", thread_id)
+            log("➡️ Đang nhấn nút Tiếp theo để gửi form đăng ký...")
             pause_event.wait()
             driver.find_element(By.XPATH, "//button[@type='submit']").click()
             log("➡️ Đã ấn Tiếp theo")
@@ -6485,7 +6607,6 @@ def run(thread_id=None):
             )
             driver.execute_script("arguments[0].click();", next_btn)
             log("✅ Đã chọn ngày sinh và ấn Tiếp theo")
-            wait_all("Chọn ngày sinh", thread_id)
 
             # === KIỂM TRA: Có chuyển sang màn điền code không? ===
             try:
@@ -6644,7 +6765,6 @@ def run(thread_id=None):
                             break
 
                 time.sleep(20)
-                wait_all("Xác minh email", thread_id)
 
             except Exception as e:
                 log(f"❌ Lỗi khi nhập mã xác minh: {repr(e)}")
@@ -6736,7 +6856,9 @@ def run(thread_id=None):
         except Exception as e:
             log(f"❌ Lỗi trình duyệt: {repr(e)}")
             try:
-                release_position(driver)   # ✅ trả chỗ
+                if is_warp_mode():
+                    warp_off()
+                release_position(driver)  # ✅ trả chỗ
                 driver.quit()
             except:
                 pass
@@ -6848,7 +6970,6 @@ def run(thread_id=None):
                         """)
                         log("✅ Đã nhấn nút Next để hoàn tất bật 2FA")
                         time.sleep(12)
-                        wait_all("Bật 2FA", thread_id)
                     except Exception as e:
                         log(f"❌ Lỗi khi nhấn nút Next hoàn tất 2FA: {repr(e)}")
                         return
@@ -6903,6 +7024,9 @@ def run(thread_id=None):
 
         # === BƯỚC 5: Follow ===
         if follow_var.get():
+            if is_warp_mode():
+                warp_change_ip()
+                time.sleep(8)
             followed_count = 0
             try:
                 pause_event.wait()
@@ -6937,26 +7061,69 @@ def run(thread_id=None):
                         log(f"🌐 [Desktop] Đã mở link: {link}")
                         time.sleep(5)
 
+                        # Check checkpoint or die after each follow
+                        current_url = driver.current_url
+                        page_source = driver.page_source
+                        checkpoint_detected = False
+                        if "checkpoint" in current_url.lower() or "Confirm you're human" in page_source or "/accounts/login/" in current_url or "Sorry, this page isn't available" in page_source:
+                            checkpoint_detected = True
+
+                        if checkpoint_detected:
+                            log("❌ [Desktop] Phát hiện checkpoint hoặc Die trong quá trình follow!")
+                            # Update TreeView: LIVE -> DIE
+                            if tree_item_id:
+                                app.after(0, lambda: update_tree_column(tree_item_id, "STATUS", "DIE"))
+                                app.after(0, lambda: update_tree_column(tree_item_id, "FOLLOW", "❌"))
+                            # Chuyển file Live.txt sang Die.txt
+                            try:
+                                live_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Live.txt")
+                                die_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Die.txt")
+                                with open(live_path, "r", encoding="utf-8") as f:
+                                    lines = f.readlines()
+                                new_lines = []
+                                moved_line = None
+                                for line in lines:
+                                    if username in line and moved_line is None:
+                                        moved_line = line
+                                    else:
+                                        new_lines.append(line)
+                                if moved_line:
+                                    with open(live_path, "w", encoding="utf-8") as f:
+                                        f.writelines(new_lines)
+                                    with open(die_path, "a", encoding="utf-8") as f:
+                                        f.write(moved_line)
+                                    log(f"🔄 Đã chuyển tài khoản từ Live.txt sang Die.txt: {username}")
+                            except Exception as e:
+                                log(f"❌ Lỗi chuyển file Live->Die: {repr(e)}")
+                            # Báo đỏ
+                            log("🔴 Tài khoản đã bị checkpoint/DIE. Restart lại phiên...")
+                            try:
+                                warp_off()
+                                time.sleep(2)
+                                release_position(driver)
+                                driver.quit()
+                                driver = None
+                            except:
+                                pass
+                            continue  # Restart lại phiên
+
                         follow_button = WebDriverWait(driver, 10).until(
                             EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Follow']"))
                         )
                         follow_button.click()
                         followed_count += 1
                         log(f"✅ [Desktop] Đã follow: {link}")
-                        
                         # Update FOLLOW column
                         if tree_item_id:
                             follow_status = f"{followed_count}/{num_follow}"
                             app.after(0, lambda s=follow_status: update_tree_column(tree_item_id, "FOLLOW", s))
                             log(f"📊 [Desktop] Cập nhật FOLLOW: {follow_status}")
-                        
                         time.sleep(6)
                     except Exception as e:
                         log(f"❌ [Desktop] Không thể follow {link}: {repr(e)}")
 
             except Exception as e:
                 log(f"❌ Lỗi trong quá trình follow: {repr(e)}")
-                wait_all("Follow", thread_id)
         else:
             log("⏭ Bỏ qua bước Follow")
 
@@ -6999,7 +7166,48 @@ def run(thread_id=None):
                 EC.presence_of_element_located((By.XPATH, "//input[@accept='image/jpeg,image/png']"))
             )
             time.sleep(8)
-            
+
+            # ==== CHECKPOINT CHECK 1 ====
+            current_url = driver.current_url
+            page_source = driver.page_source
+            checkpoint_detected = False
+            if "checkpoint" in current_url.lower() or "Confirm you're human" in page_source or "/accounts/login/" in current_url or "Sorry, this page isn't available" in page_source:
+                checkpoint_detected = True
+            if checkpoint_detected:
+                log("❌ [Desktop] Phát hiện checkpoint hoặc Die khi mở trang chỉnh sửa hồ sơ!")
+                if tree_item_id:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "STATUS", "DIE"))
+                try:
+                    live_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Live.txt")
+                    die_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Die.txt")
+                    with open(live_path, "r", encoding="utf-8") as f:
+                        lines = f.readlines()
+                    new_lines = []
+                    moved_line = None
+                    for line in lines:
+                        if username in line and moved_line is None:
+                            moved_line = line
+                        else:
+                            new_lines.append(line)
+                    if moved_line:
+                        with open(live_path, "w", encoding="utf-8") as f:
+                            f.writelines(new_lines)
+                        with open(die_path, "a", encoding="utf-8") as f:
+                            f.write(moved_line)
+                        log(f"🔄 Đã chuyển tài khoản từ Live.txt sang Die.txt: {username}")
+                except Exception as e:
+                    log(f"❌ Lỗi chuyển file Live->Die: {repr(e)}")
+                log("🔴 Tài khoản checkpoint/DIE. Restart lại phiên...")
+                try:
+                    warp_off()
+                    time.sleep(2)
+                    release_position(driver)
+                    driver.quit()
+                    driver = None
+                except:
+                    pass
+                return  # dừng bước 6
+
             # Nhấn Prefer not to say
             driver.execute_script("""
                 const preferEl = document.evaluate(
@@ -7043,7 +7251,7 @@ def run(thread_id=None):
                     app.after(0, lambda: update_tree_column(tree_item_id, "GENDER", "❌"))
                 log(f"❌ [Desktop] Lỗi chọn Gender: {repr(e)}")
 
-            # Điền Bio (theo lựa chọn GUI) — chuẩn React (setNativeValue + input/change)
+            # Điền Bio
             try:
                 bio_value = get_bio_text()
                 driver.execute_script("""
@@ -7052,7 +7260,7 @@ def run(thread_id=None):
                     if (!el) { console.warn("❌ Không tìm thấy ô Bio (#pepBio/biography)"); return; }
                     const proto  = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
                     const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-                    if (setter) setter.call(el, val); else el.value = val;  // fallback
+                    if (setter) setter.call(el, val); else el.value = val;
                     el.dispatchEvent(new Event('input',  {bubbles:true}));
                     el.dispatchEvent(new Event('change', {bubbles:true}));
                     el.blur();
@@ -7064,6 +7272,48 @@ def run(thread_id=None):
                 bio_saved = True
             except Exception as e:
                 log(f"❌ [Desktop] Lỗi điền Bio: {repr(e)}")
+
+            # ==== CHECKPOINT CHECK 2 ====
+            current_url = driver.current_url
+            page_source = driver.page_source
+            checkpoint_detected = False
+            if "checkpoint" in current_url.lower() or "Confirm you're human" in page_source or "/accounts/login/" in current_url or "Sorry, this page isn't available" in page_source:
+                checkpoint_detected = True
+            if checkpoint_detected:
+                log("❌ [Desktop] Phát hiện checkpoint hoặc Die sau khi điền Bio!")
+                if tree_item_id:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "STATUS", "DIE"))
+                    app.after(0, lambda: update_tree_column(tree_item_id, "BIO", "❌"))
+                try:
+                    live_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Live.txt")
+                    die_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Die.txt")
+                    with open(live_path, "r", encoding="utf-8") as f:
+                        lines = f.readlines()
+                    new_lines = []
+                    moved_line = None
+                    for line in lines:
+                        if username in line and moved_line is None:
+                            moved_line = line
+                        else:
+                            new_lines.append(line)
+                    if moved_line:
+                        with open(live_path, "w", encoding="utf-8") as f:
+                            f.writelines(new_lines)
+                        with open(die_path, "a", encoding="utf-8") as f:
+                            f.write(moved_line)
+                        log(f"🔄 Đã chuyển tài khoản từ Live.txt sang Die.txt: {username}")
+                except Exception as e:
+                    log(f"❌ Lỗi chuyển file Live->Die: {repr(e)}")
+                log("🔴 Tài khoản checkpoint/DIE. Restart lại phiên...")
+                try:
+                    warp_off()
+                    time.sleep(2)
+                    release_position(driver)
+                    driver.quit()
+                    driver = None
+                except:
+                    pass
+                return
 
             # Nhấn Submit
             driver.execute_script("""
@@ -7140,6 +7390,48 @@ def run(thread_id=None):
                 log(f"❌ [Desktop] Lỗi upload avatar: {repr(e)}")
                 if tree_item_id:
                     app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "❌"))
+
+            # ==== CHECKPOINT CHECK 3 ====
+            current_url = driver.current_url
+            page_source = driver.page_source
+            checkpoint_detected = False
+            if "checkpoint" in current_url.lower() or "Confirm you're human" in page_source or "/accounts/login/" in current_url or "Sorry, this page isn't available" in page_source:
+                checkpoint_detected = True
+            if checkpoint_detected:
+                log("❌ [Desktop] Phát hiện checkpoint hoặc Die sau khi upload avatar!")
+                if tree_item_id:
+                    app.after(0, lambda: update_tree_column(tree_item_id, "STATUS", "DIE"))
+                    app.after(0, lambda: update_tree_column(tree_item_id, "AVATAR", "❌"))
+                try:
+                    live_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Live.txt")
+                    die_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Die.txt")
+                    with open(live_path, "r", encoding="utf-8") as f:
+                        lines = f.readlines()
+                    new_lines = []
+                    moved_line = None
+                    for line in lines:
+                        if username in line and moved_line is None:
+                            moved_line = line
+                        else:
+                            new_lines.append(line)
+                    if moved_line:
+                        with open(live_path, "w", encoding="utf-8") as f:
+                            f.writelines(new_lines)
+                        with open(die_path, "a", encoding="utf-8") as f:
+                            f.write(moved_line)
+                        log(f"🔄 Đã chuyển tài khoản từ Live.txt sang Die.txt: {username}")
+                except Exception as e:
+                    log(f"❌ Lỗi chuyển file Live->Die: {repr(e)}")
+                log("🔴 Tài khoản checkpoint/DIE. Restart lại phiên...")
+                try:
+                    warp_off()
+                    time.sleep(2)
+                    release_position(driver)
+                    driver.quit()
+                    driver = None
+                except:
+                    pass
+                return
                     
         except Exception as e:
             log(f"❌ [Desktop] Lỗi Bước 6: {repr(e)}")
@@ -7340,9 +7632,8 @@ def show_intro(app, main_func):
     intro.attributes("-alpha", 0.0)
     fade_in()
 
-
 app = tk.Tk()
-app.withdraw()
+app.withdraw() 
 app.title("Instagram Auto Creator")
 # --- Center window on screen ---
 window_width = 1366
@@ -7638,8 +7929,6 @@ tk.Button(row2, text="CHOOSE CHROME", width=18, height=1, bg="black", fg="white"
           command=select_chrome).pack(side="left", padx=4)
 
 # ===== HÀNG 3: Đã xóa WARP ON (chuyển xuống Desktop Settings) =====
-
-# ===== HÀNG 3: Đã xóa WARP ON (chuyển xuống Desktop Settings) =====
 row3 = tk.Frame(left_frame, bg="white")
 row3.pack(pady=3, fill="x")
 
@@ -7681,6 +7970,8 @@ def save_ava_folder_to_config(folder):
         json.dump(config, f, ensure_ascii=False, indent=2)
 
 def load_ava_folder_from_config():
+
+# Khi khởi động, load lại từ config.json:
     """Đọc đường dẫn thư mục avatar từ config.json"""
     try:
         with open("config.json", "r", encoding="utf-8") as f:
@@ -7688,7 +7979,6 @@ def load_ava_folder_from_config():
         return config.get("ava_folder_path", "")
     except Exception:
         return ""
-
 ava_folder_path = load_ava_folder_from_config()
 
 # ========================= KHỐI GIỮA: Desktop Settings =========================
@@ -8040,33 +8330,39 @@ m_bio_text_mirror = scrolledtext.ScrolledText(col_bio_mobile, height=4, width=20
                                                font=rog_font_tiny)
 m_bio_text_mirror.pack(fill="both", expand=True, padx=4, pady=4)
 
-# COL 3: CHROME SETTINGS
-col_chrome_mobile = tk.LabelFrame(row_3cols_mobile, text="CHROME SETTINGS:", bg="white", font=rog_font_tiny, 
-                                  relief="solid", borderwidth=1)
+# COL 3: CHROME SETTINGS (MOBILE)
+col_chrome_mobile = tk.LabelFrame(row_3cols_mobile, text="CHROME SETTINGS:", bg="white",
+                                  font=rog_font_tiny, relief="solid", borderwidth=1)
 col_chrome_mobile.pack(side="left", fill="both", expand=True)
 
+# --- Chrome Size ---
 chrome_size_frame = tk.LabelFrame(col_chrome_mobile, text="Chrome Size", bg="white", font=rog_font_tiny)
 chrome_size_frame.pack(fill="x", padx=4, pady=4)
 
 row_wh_m = tk.Frame(chrome_size_frame, bg="white")
 row_wh_m.pack(anchor="w", pady=2)
-tk.Label(row_wh_m, text="W:", bg="white").pack(side="left", padx=2)
-entry_width_m = tk.Entry(row_wh_m, width=6, justify="center")
-entry_width_m.insert(0, "1200")
-entry_width_m.pack(side="left", padx=2)
-tk.Label(row_wh_m, text="H:", bg="white").pack(side="left", padx=2)
-entry_height_m = tk.Entry(row_wh_m, width=6, justify="center")
-entry_height_m.insert(0, "800")
-entry_height_m.pack(side="left", padx=2)
 
+tk.Label(row_wh_m, text="W:", bg="white", font=rog_font_tiny).pack(side="left", padx=2)
+mobile_entry_width = tk.Entry(row_wh_m, width=6, justify="center")
+mobile_entry_width.insert(0, "375")  # mặc định iPhone 8 width
+mobile_entry_width.pack(side="left", padx=2)
+
+tk.Label(row_wh_m, text="H:", bg="white", font=rog_font_tiny).pack(side="left", padx=2)
+mobile_entry_height = tk.Entry(row_wh_m, width=6, justify="center")
+mobile_entry_height.insert(0, "667")  # mặc định iPhone 8 height
+mobile_entry_height.pack(side="left", padx=2)
+
+# --- Chrome Scale ---
 row_scale_m = tk.Frame(chrome_size_frame, bg="white")
 row_scale_m.pack(anchor="w", pady=2)
-tk.Label(row_scale_m, text="Scale(%):", bg="white", font=rog_font_tiny).pack(side="left", padx=2)
-entry_scale_m = tk.Entry(row_scale_m, width=6, justify="center")
-entry_scale_m.insert(0, "100")
-entry_scale_m.pack(side="left", padx=2)
 
-tk.Checkbutton(col_chrome_mobile, text="Ẩn Chrome (Headless)", variable=hidden_chrome_var, 
+tk.Label(row_scale_m, text="Scale(%):", bg="white", font=rog_font_tiny).pack(side="left", padx=2)
+mobile_entry_scale = tk.Entry(row_scale_m, width=6, justify="center")
+mobile_entry_scale.insert(0, "100")
+mobile_entry_scale.pack(side="left", padx=2)
+
+hidden_chrome_mobile_var = tk.BooleanVar(value=False)
+tk.Checkbutton(col_chrome_mobile, text="Ẩn Chrome (Headless)", variable=hidden_chrome_mobile_var, 
                bg="white").pack(anchor="w", pady=2, padx=4)
 
 # ==================== ĐỒNG BỘ BIO (Desktop <-> Mobile) ====================
