@@ -6468,7 +6468,6 @@ def run(thread_id=None):
 
         # Áp dụng scale từ settings sau khi mở trang
         driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
-        log(f"✅ [Luồng {thread_id}] Chrome đã mở xong và trang Instagram sẵn sàng.")
         time.sleep(3)
         try:
             WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.NAME, "emailOrPhone")))
@@ -7475,7 +7474,7 @@ def run(thread_id=None):
                 driver.get("https://www.instagram.com/accounts/convert_to_professional_account/")
                 WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
                 time.sleep(10)
-
+                driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
                 # 1) Chọn Creator
                 account_type = pro_type_var.get()
                 if account_type == "Creator":
