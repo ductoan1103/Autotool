@@ -2925,8 +2925,10 @@ class AndroidWorker(threading.Thread):
                     # 📤 1️⃣ Dump UI từ thiết bị
                     XML_PATH_PHONE = "/sdcard/window_dump.xml"
                     XML_PATH_PC = r"C:\Users\MINH\Downloads\AutoTool\ui.xml"
-                    subprocess.run(["adb", "-s", udid, "shell", "uiautomator", "dump", XML_PATH_PHONE], stdout=subprocess.DEVNULL)
-                    subprocess.run(["adb", "-s", udid, "pull", XML_PATH_PHONE, XML_PATH_PC], stdout=subprocess.DEVNULL)
+                    subprocess.run(["adb", "-s", udid, "shell", "uiautomator", "dump", XML_PATH_PHONE],
+                                stdout=subprocess.DEVNULL)
+                    subprocess.run(["adb", "-s", udid, "pull", XML_PATH_PHONE, XML_PATH_PC],
+                                stdout=subprocess.DEVNULL)
 
                     x_center, y_center = None, None
 
@@ -2935,13 +2937,14 @@ class AndroidWorker(threading.Thread):
                         with open(XML_PATH_PC, "r", encoding="utf-8") as f:
                             xml_content = f.read()
 
-                        # Tìm node có content-desc chứa "Create" và lấy bounds
+                        # Regex linh hoạt hơn: tìm mọi biến thể có dấu cộng hoặc Create/Add/New/Post
                         match = re.search(
-                            r'content-desc="([^"]*Create[^"]*)"[\s\S]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+                            r'content-desc="([^"]*(Create|Add|New|Post|\+)[^"]*)"[\s\S]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
                             xml_content
                         )
+
                         if match:
-                            desc, x1, y1, x2, y2 = match.groups()
+                            desc, _, x1, y1, x2, y2 = match.groups()
                             x_center = (int(x1) + int(x2)) // 2
                             y_center = (int(y1) + int(y2)) // 2
                             log(f"[✅] Đã phát hiện nút '+' trong XML: desc='{desc}', tọa độ=({x_center},{y_center})")
@@ -2953,16 +2956,40 @@ class AndroidWorker(threading.Thread):
                                 log("[✅] Đã click nút '+' bằng accessibility id!")
                                 clicked = True
                             except Exception:
-                                log("[⚠️] Không tìm thấy phần tử bằng desc, fallback về tọa độ...")
+                                log("[⚠️] Không tìm thấy phần tử bằng desc, fallback sang tọa độ...")
 
                         # 🖱️ 4️⃣ Fallback: click theo tọa độ nếu có
-                        if not clicked and x_center and y_center:
-                            try:
-                                d.execute_script("mobile: clickGesture", {"x": x_center, "y": y_center})
-                                log(f"[✅] Đã click nút '+' bằng tọa độ fallback tại ({x_center}, {y_center})")
-                                clicked = True
-                            except Exception as e:
-                                log(f"❌ Không thể click bằng tọa độ fallback: {e}")
+                        if not clicked:
+                            if x_center and y_center:
+                                try:
+                                    subprocess.run(
+                                        ["adb", "-s", udid, "shell", "input", "tap",
+                                        str(x_center), str(y_center)],
+                                        stdout=subprocess.DEVNULL
+                                    )
+                                    log(f"[✅] Đã click nút '+' bằng adb tap fallback tại ({x_center},{y_center})")
+                                    clicked = True
+                                except Exception as e:
+                                    log(f"❌ Không thể click bằng adb tap fallback: {e}")
+                            else:
+                                # fallback thêm: click vùng góc trái trên nếu không có tọa độ
+                                log("[⚠️] Không xác định được tọa độ, đang dò fallback vùng góc trái trên...")
+                                bounds_match = re.findall(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml_content)
+                                for b in bounds_match:
+                                    x1, y1, x2, y2 = map(int, b)
+                                    if x2 < 300 and y2 < 400:
+                                        x_center = (x1 + x2) // 2
+                                        y_center = (y1 + y2) // 2
+                                        subprocess.run(
+                                            ["adb", "-s", udid, "shell", "input", "tap",
+                                            str(x_center), str(y_center)],
+                                            stdout=subprocess.DEVNULL
+                                        )
+                                        log(f"[✅] Click fallback vùng góc trái ({x_center},{y_center}) bằng adb tap")
+                                        clicked = True
+                                        break
+                                if not clicked:
+                                    log("❌ Không tìm thấy vùng góc trái hợp lệ để click.")
                     else:
                         log("❌ Không tìm thấy file XML sau khi dump!")
 
