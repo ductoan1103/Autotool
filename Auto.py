@@ -1248,6 +1248,19 @@ class AndroidWorker(threading.Thread):
         self.log("✅ WARP đã được bật (Next/Accept/Install/OK/Connect).")
 
     # ================================= PROXY PHONE ======================================================
+    def configure_super_proxy_ip_port(self, ip=None, port=None, user=None, pwd=None):
+        """Giữ hàm này để tránh lỗi AttributeError từ luồng network mode 'proxy'."""
+        try:
+            if ip and port:
+                if user and pwd:
+                    self.log(f"⚙️ configure_super_proxy_ip_port: IP={ip}:{port} | USER={user} | PASS={pwd}")
+                else:
+                    self.log(f"⚙️ configure_super_proxy_ip_port: IP={ip}:{port} (no auth)")
+            else:
+                self.log("⚙️ configure_super_proxy_ip_port: Không có IP/PORT hợp lệ.")
+        except Exception as e:
+            self.log(f"⚠️ Lỗi trong configure_super_proxy_ip_port: {repr(e)}")
+            
     def open_super_proxy(self):
         d = self.driver
         udid = self.udid
@@ -1276,6 +1289,18 @@ class AndroidWorker(threading.Thread):
         if not proxy or not proxy["ip"] or not proxy["port"]:
             self.log("⛔ Proxy không hợp lệ")
             return
+
+        # Log chính xác cấu hình proxy
+        if proxy.get("has_auth"):
+            self.log(f"⚙️ Proxy nhận được:")
+            self.log(f"   ├─ IP: {proxy['ip']}")
+            self.log(f"   ├─ PORT: {proxy['port']}")
+            self.log(f"   ├─ USER: {proxy['user']}")
+            self.log(f"   └─ PASS: {proxy['pwd']}")
+        else:
+            self.log(f"⚙️ Proxy nhận được:")
+            self.log(f"   ├─ IP: {proxy['ip']}")
+            self.log(f"   └─ PORT: {proxy['port']}")
 
         # 👉 Protocol HTTP
         adb_shell(udid, "input", "tap", "500", "600")   # tap Protocol
@@ -1325,8 +1350,10 @@ class AndroidWorker(threading.Thread):
         # 👉 Popup Connection request (OK)
         adb_shell(udid, "input", "tap", "800", "1300")
 
+        # 👉 Kết quả cuối
         if proxy.get("has_auth"):
-            self.log(f"✅ Đã cấu hình Proxy {proxy['ip']}:{proxy['port']} (User/Pass)")
+            self.log(f"✅ Đã cấu hình Proxy {proxy['ip']}:{proxy['port']} "
+                     f"(USER={proxy['user']} | PASS={proxy['pwd']})")
         else:
             self.log(f"✅ Đã cấu hình Proxy {proxy['ip']}:{proxy['port']}")
 
