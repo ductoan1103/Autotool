@@ -10413,3 +10413,4 @@ def open_main_app():
 show_intro(app, open_main_app)
 
 app.mainloop()
+aa
