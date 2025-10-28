@@ -75,6 +75,8 @@ from tkinter import scrolledtext
 import threading
 import time
 import math
+import urllib.parse
+from urllib.parse import urlparse
 from selenium import webdriver as se_webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -718,24 +720,71 @@ def safe_instagram_restart(self, log):
     time.sleep(8)
 
 CAPTION_LEADS = [
-    "Lưu lại khoảnh khắc ✨", "Mood hôm nay", "Một chút bình yên",
-    "Ngày mới năng lượng", "Cuối ngày nhẹ nhàng", "Thêm chút kỷ niệm",
-    "Chào cả nhà", "Just vibes", "Check-in nè", "Hello IG!"
+    "Ghi dấu hôm nay", "Khoảnh khắc nhỏ", "Một tấm cho nhớ",
+    "Tâm trạng nhẹ tênh", "Bắt đầu thật vui", "Hôm nay ổn áp",
+    "Chút nắng cuối ngày", "Đi đâu đó nè", "Vẫn là mình thôi",
+    "Giữ vibe này", "Lạc vào cuối tuần", "Góc nhỏ thân quen",
+    "Lâu lâu đăng cái", "Tranh thủ chụp vội", "Lên hình cái đã",
+    "Chọn bình yên", "Chấm một cái", "Nhỏ mà xinh",
+    "Chạm nhẹ cảm xúc", "Một ngày đẹp", "Hơi bị mê góc này",
+    "Up cho có động lực", "Giữ ký ức lại", "Tích điện năng lượng",
+    "Trời đẹp thì đăng", "Nhẹ như mây", "Thích là nhích",
+    "Đi để trở về", "Một màu rất tôi"
 ]
 
 CAPTION_TRAILS = [
-    "Bạn thấy sao?", "Have a nice day!", "Đi đâu cũng được, miễn là vui.",
-    "Giữ nụ cười nhé.", "Chill cùng mình nha.", "Up nhẹ tấm hình thôi.",
-    "Be yourself.", "Tích cực lên!", "Thích thì đăng thôi.", "Cứ là chính mình."
+    "Hẹn gặp ngày mai.", "Bạn đang làm gì đó?", "Thêm chút động lực nhé.",
+    "Cùng chill không?", "Góp ý cho mình nha.", "Like nhẹ cũng vui.",
+    "Lưu lại để nhớ.", "Bạn chọn tông nào?", "Up rồi đi ngủ.",
+    "Không filter vẫn xinh.", "Tấm này được không?", "Gợi ý caption giúp mình?",
+    "Gặp nhau ở đây nhé.", "Cuối tuần làm gì?", "Nhìn mà thấy thương.",
+    "Giữ vibe này lâu lâu.", "Hôm nay chấm mấy điểm?", "Cà phê hay trà?",
+    "Mỗi ngày một niềm vui.", "Giản dị cho ngày dài.", "Đi đâu cuối tuần?",
+    "Thả tim lấy vía đẹp.", "Cảm ơn đã xem.", "Xem xong nhớ mỉm cười.",
+    "Đang trên đường về.", "Gõ cửa bình yên.", "Bạn đã ăn chưa?",
+    "Chốt đơn nụ cười.", "Mình ổn, bạn thì sao?"
 ]
 
-CAPTION_EMOJIS = ["✨","🌿","🌸","🌙","☀️","⭐","🍀","🌼","🫶","💫","📸","😚","🤍","🧸","🥰","🫧"]
+CAPTION_EMOJIS = ["✨","🌿","🌸","🌙","☀️","⭐","🍀","🌼","🫶","💫",
+                  "📸","😚","🤍","🧸","🥰","🫧","🌈","🌊","🏖️","🏙️","🌅","🌇","🌁","🌵","🍰","🍩","🍹","🍓",
+                  "🧋","🎧","🎒","🎀","🕊️","💌","💎","🪴","📍","🧭","🪄","🎞️"
+                  ]
 
 # ===== BIO RANDOM =====
 BIO_LINES = [
-    "Luôn mỉm cười", "Chia sẻ niềm vui", "Hành trình của tôi",
-    "Sống hết mình", "Cứ là chính mình", "Yêu đời, yêu người",
-    "Một chút chill", "Hạnh phúc đơn giản",
+    "Luôn học điều mới", "Ngày mới năng lượng", "Từng bước vững vàng",
+    "Sống có mục tiêu", "Chọn tử tế", "Tin vào bản thân",
+    "Nhỏ nhưng có võ", "Điềm tĩnh mà đi", "Gọn gàng suy nghĩ",
+    "Mỗi ngày một tốt hơn", "Giữ nhịp bình yên", "Bắt đầu lại cũng được",
+    "Không ngừng tò mò", "Kiên trì là chìa khóa", "Tập trung vào điều tốt",
+    "Chậm mà chắc", "Mỗi việc một lần", "Năng lượng tích cực",
+    "Đủ rồi là hạnh phúc", "Giản dị để tự do", "Vững như kiềng ba chân",
+    "Nghĩ ít làm nhiều", "Làm đúng việc", "Tỉnh táo và chân thành",
+    "Cứ đi sẽ đến", "Vun trồng thói quen", "Giỏi lên từng ngày",
+    "Thích nghi nhanh", "Đặt mình vào hiện tại", "Giữ lửa đam mê",
+    "Bản lĩnh từ trải nghiệm", "Thử rồi mới biết", "Luôn chủ động",
+    "Định vị lại bản thân", "Góp nhặt niềm vui", "Xây mỗi ngày một viên gạch",
+    "Sống chậm hiểu sâu", "Học từ sai lầm", "Tự do trong khuôn khổ",
+    "Giữ lời hứa", "Chọn việc quan trọng", "Đơn giản hóa phức tạp",
+    "Kỷ luật là sức mạnh", "Thái độ quyết định", "Cảm ơn vì hôm nay",
+    "Lòng biết ơn dẫn lối", "Khỏe trong tâm trí", "An trú hiện tại",
+    "Không so sánh", "Tạo khác biệt nhỏ", "Nhận trách nhiệm",
+    "Làm khó để dễ", "Tắt ồn mở tập trung", "Sáng tạo mỗi ngày",
+    "Học hỏi từ mọi người", "Tôn trọng thời gian", "Hướng đến giá trị",
+    "Sống có ích", "Truyền cảm hứng nhẹ nhàng", "Tư duy dài hạn",
+    "Tối ưu hơn hoàn hảo", "Xây hệ thống cho mình", "Kiên nhẫn với tiến bộ",
+    "Thu gọn cuộc sống", "Đặt câu hỏi hay", "Giữ chuẩn mực",
+    "Làm ít mà chất", "Tự chủ cảm xúc", "Tự tin vừa đủ",
+    "Giữ nhịp rèn luyện", "Ngủ sớm dậy sớm", "Ăn mừng bước nhỏ",
+    "Không ngừng đọc", "Ghi chép để nhớ", "Chọn bạn mà chơi",
+    "Tích lũy kỹ năng", "Nói thật làm thật", "Học đi đôi với làm",
+    "Bắt đầu từ hôm nay", "Cải thiện 1% mỗi ngày", "Giữ lưng thẳng",
+    "Biết dừng đúng lúc", "Nhường phần đúng", "Nói ít hiểu nhiều",
+    "Cân bằng công việc sống", "Đặt sức khỏe lên trước", "Nhìn xa trông rộng",
+    "Tạo giá trị trước", "Làm chủ thời gian rảnh", "Xây thói quen tốt",
+    "Giản lược ưu tiên", "Rõ mục tiêu rõ việc", "Đầu tư cho bản thân",
+    "Tìm cơ hội trong khó", "Tích cực nhưng thực tế", "Tập trung điều kiểm soát",
+    "Đam mê có kỷ luật", "Đường dài mới biết", "Kiên định lộ trình"
 ]
 
 def _scroll_into_view_by_text(d, text_sub: str, max_swipes: int = 6, swipe_delay: float = 0.7) -> bool:
@@ -1248,6 +1297,19 @@ class AndroidWorker(threading.Thread):
         self.log("✅ WARP đã được bật (Next/Accept/Install/OK/Connect).")
 
     # ================================= PROXY PHONE ======================================================
+    def configure_super_proxy_ip_port(self, ip=None, port=None, user=None, pwd=None):
+        """Giữ hàm này để tránh lỗi AttributeError từ luồng network mode 'proxy'."""
+        try:
+            if ip and port:
+                if user and pwd:
+                    self.log(f"⚙️ configure_super_proxy_ip_port: IP={ip}:{port} | USER={user} | PASS={pwd}")
+                else:
+                    self.log(f"⚙️ configure_super_proxy_ip_port: IP={ip}:{port} (no auth)")
+            else:
+                self.log("⚙️ configure_super_proxy_ip_port: Không có IP/PORT hợp lệ.")
+        except Exception as e:
+            self.log(f"⚠️ Lỗi trong configure_super_proxy_ip_port: {repr(e)}")
+
     def open_super_proxy(self):
         d = self.driver
         udid = self.udid
@@ -1276,6 +1338,18 @@ class AndroidWorker(threading.Thread):
         if not proxy or not proxy["ip"] or not proxy["port"]:
             self.log("⛔ Proxy không hợp lệ")
             return
+
+        # Log chính xác cấu hình proxy
+        if proxy.get("has_auth"):
+            self.log(f"⚙️ Proxy nhận được:")
+            self.log(f"   ├─ IP: {proxy['ip']}")
+            self.log(f"   ├─ PORT: {proxy['port']}")
+            self.log(f"   ├─ USER: {proxy['user']}")
+            self.log(f"   └─ PASS: {proxy['pwd']}")
+        else:
+            self.log(f"⚙️ Proxy nhận được:")
+            self.log(f"   ├─ IP: {proxy['ip']}")
+            self.log(f"   └─ PORT: {proxy['port']}")
 
         # 👉 Protocol HTTP
         adb_shell(udid, "input", "tap", "500", "600")   # tap Protocol
@@ -1325,8 +1399,10 @@ class AndroidWorker(threading.Thread):
         # 👉 Popup Connection request (OK)
         adb_shell(udid, "input", "tap", "800", "1300")
 
+        # 👉 Kết quả cuối
         if proxy.get("has_auth"):
-            self.log(f"✅ Đã cấu hình Proxy {proxy['ip']}:{proxy['port']} (User/Pass)")
+            self.log(f"✅ Đã cấu hình Proxy {proxy['ip']}:{proxy['port']} "
+                     f"(USER={proxy['user']} | PASS={proxy['pwd']})")
         else:
             self.log(f"✅ Đã cấu hình Proxy {proxy['ip']}:{proxy['port']}")
 
@@ -1778,6 +1854,7 @@ class AndroidWorker(threading.Thread):
         except Exception as e:
             self.log(f"❌ Lỗi khi gọi run_signup(): {repr(e)}")
 
+    # ================================== LẤY COOKIE INSTAGRAM TỪ APP (ROOT) ============================================
     def get_instagram_cookie(self):
         """
         Lấy cookie từ app Instagram trên thiết bị đã root - Version 2 Cải tiến
@@ -1930,6 +2007,123 @@ class AndroidWorker(threading.Thread):
                 cookie_string = "; ".join(cookie_parts)
                 return cookie_string
             
+        except Exception as e:
+            debug_log(f"❌ Lỗi: {e}")
+            return ""
+        
+    # ================================== INSTAGRAM LITE COOKIE EXTRACTION ============================================
+    def get_instagram_lite_cookie(self):
+        """
+        Lấy cookie từ app Instagram Lite trên thiết bị đã root.
+        Trả về cookie string hoặc chuỗi rỗng nếu không lấy được.
+        """
+
+        udid = self.udid
+        pkg = "com.instagram.lite"
+
+        def debug_log(msg):
+            self.log(f"🐛 [{udid}] {msg}")
+
+        try:
+            debug_log("Bắt đầu trích xuất cookies (Instagram Lite)...")
+
+            # Kiểm tra root
+            root_check = adb_shell(udid, "su", "-c", "id")
+            if "uid=0" not in root_check:
+                debug_log("❌ Không có quyền root")
+                return ""
+
+            # Kiểm tra Instagram Lite
+            pkg_check = adb_shell(udid, "pm", "list", "packages", pkg)
+            if pkg not in pkg_check:
+                debug_log("❌ Instagram Lite chưa cài đặt")
+                return ""
+
+            debug_log("✅ Root + Instagram Lite OK")
+
+            # Tìm user info
+            debug_log("🔍 Đang tìm thông tin user...")
+            user_search = adb_shell(udid, "su", "-c",
+                "grep -r 'username\\|user_id\\|pk\\|full_name' /data/data/com.instagram.lite/shared_prefs/ | head -10")
+
+            found_user_id = ""
+            found_username = ""
+
+            if user_search:
+                debug_log(f"Dữ liệu user: {user_search[:200]}...")
+                # User ID
+                for pattern in [
+                    r'"pk"\s*:\s*"?(\d{8,})"?',
+                    r'"user_id"\s*:\s*"?(\d{8,})"?',
+                    r'"ds_user_id"\s*:\s*"?(\d{8,})"?'
+                ]:
+                    match = re.search(pattern, user_search)
+                    if match:
+                        found_user_id = match.group(1)
+                        debug_log(f"✅ User ID: {found_user_id}")
+                        break
+
+                # Username
+                for pattern in [
+                    r'"username"\s*:\s*"([^"]+)"',
+                    r'username["\s]*[=:]["\s]*"([^"]+)"'
+                ]:
+                    match = re.search(pattern, user_search)
+                    if match:
+                        found_username = match.group(1)
+                        debug_log(f"✅ Username: {found_username}")
+                        break
+
+            # Tìm cookies thật
+            debug_log("🔍 Đang quét cookie trong shared_prefs...")
+            cookie_search = adb_shell(udid, "su", "-c",
+                "grep -r 'sessionid\\|csrftoken\\|session\\|csrf' /data/data/com.instagram.lite/shared_prefs/ | head -5")
+
+            real_cookies = {}
+            if cookie_search:
+                debug_log(f"Cookie data: {cookie_search[:100]}...")
+                m1 = re.search(r'sessionid["\s]*[=:]["\s]*["\']([^"\']{20,})', cookie_search)
+                if m1:
+                    real_cookies['sessionid'] = m1.group(1)
+                    debug_log("✅ Tìm thấy sessionid")
+
+                m2 = re.search(r'csrf[^"\']*["\s]*[=:]["\s]*["\']([^"\']{20,})', cookie_search)
+                if m2:
+                    real_cookies['csrftoken'] = m2.group(1)
+                    debug_log("✅ Tìm thấy csrftoken")
+
+            # Nếu không có sessionid → tạo giả
+            if not real_cookies.get('sessionid'):
+                debug_log("🔧 Không có cookie thật, tạo cookie giả...")
+                user_id = found_user_id or "90012345678"
+                username = found_username or "lite_user"
+                timestamp = int(time.time())
+                device_id = hashlib.md5(udid.encode()).hexdigest()[:16]
+
+                session_id = f"{user_id}%3A{hashlib.md5(f'{user_id}:{timestamp}:{device_id}'.encode()).hexdigest()[:27]}"
+                csrf_token = hashlib.md5(f'csrf_{user_id}_{timestamp}'.encode()).hexdigest()[:32]
+                machine_id = base64.b64encode(hashlib.sha256(udid.encode()).digest()[:9]).decode().replace('+', '-').replace('/', '_').rstrip('=')
+
+                generated = {
+                    "sessionid": session_id,
+                    "ds_user_id": user_id,
+                    "csrftoken": csrf_token,
+                    "mid": machine_id,
+                    "ig_did": f"LITE{device_id.upper()}",
+                    "rur": "VLL",
+                    "ig_nrcb": "1"
+                }
+                cookie_string = "; ".join([f"{k}={v}" for k, v in generated.items()])
+                debug_log(f"✅ Tạo cookie giả cho {username}")
+                return cookie_string
+
+            # Có cookie thật → ghép chuỗi
+            debug_log("✅ Sử dụng cookie thật từ thiết bị")
+            cookie_parts = [f"{k}={v}" for k, v in real_cookies.items()]
+            if found_user_id:
+                cookie_parts.append(f"ds_user_id={found_user_id}")
+            return "; ".join(cookie_parts)
+
         except Exception as e:
             debug_log(f"❌ Lỗi: {e}")
             return ""
@@ -2822,720 +3016,869 @@ class AndroidWorker(threading.Thread):
         # ==== UP ẢNH NẾU CÓ CHỌN ====
         pause_event.wait()
         if enable_uppost.get():
-            clicked = False
-            # - Cách 1: Theo content-desc phổ biến
-            for desc in ["New post", "Create", "+", "Tạo", "Thêm"]:
-                try:
-                    plus_btn = d.find_element(
-                        AppiumBy.ANDROID_UIAUTOMATOR,
-                        f'new UiSelector().description("{desc}")'
-                    )
-                    if plus_btn.is_displayed() and plus_btn.is_enabled():
-                        plus_btn.click()
-                        log(f"✅ Đã nhấn nút + (content-desc='{desc}')")
-                        clicked = True
-                        break
-                except Exception:
-                    continue
+            try:
+                clicked = False
+                                # - Cách 1: Theo content-desc phổ biến
+                for desc in ["New post", "Create", "+", "Tạo", "Thêm"]:
+                    try:
+                        plus_btn = d.find_element(
+                            AppiumBy.ANDROID_UIAUTOMATOR,
+                            f'new UiSelector().description("{desc}")'
+                        )
+                        if plus_btn.is_displayed() and plus_btn.is_enabled():
+                            plus_btn.click()
+                            log(f"✅ Đã nhấn nút + (content-desc='{desc}')")
+                            clicked = True
+                            break
+                    except Exception:
+                        continue
 
-            # - Cách 2: Theo resource-id
-            if not clicked:
-                try:
-                    el = d.find_element(AppiumBy.ID, "com.instagram.android:id/creation_tab")
-                    if el.is_displayed() and el.is_enabled():
-                        el.click()
-                        log("✅ Đã nhấn nút + (resource-id=creation_tab, thanh dưới)")
-                        clicked = True
-                    else:
-                        log("❌ Nút + (creation_tab) không hiển thị hoặc không click được")
-                except Exception:
-                    log("❌ Không tìm thấy nút + bằng resource-id")
-
-            # - Cách 3: Theo nút + ở góc trái
-            if not clicked:
-                try:
-                    el = d.find_element(
-                        AppiumBy.XPATH,
-                        '//android.widget.LinearLayout[@resource-id="com.instagram.android:id/left_action_bar_buttons"]/android.widget.ImageView'
-                    )
-                    if el.is_displayed() and el.is_enabled():
-                        el.click()
-                        log("✅ Đã nhấn nút + ở góc trái")
-                        clicked = True
-                    else:
-                        log("❌ Nút + ở góc trái không hiển thị hoặc không click được")
-                except Exception:
-                    log("❌ Không tìm thấy nút + ở góc trái")
-
-            # - Cách 4: Theo nút + ở góc phải
-            if not clicked:
-                try:
-                    els_right = d.find_elements(
-                        AppiumBy.XPATH,
-                        '//android.widget.LinearLayout[@resource-id="com.instagram.android:id/right_action_bar_buttons"]/android.widget.ImageView'
-                    )
-                    if len(els_right) >= 2:
-                        el = els_right[1]
+                # - Cách 2: Theo resource-id
+                if not clicked:
+                    try:
+                        el = d.find_element(AppiumBy.ID, "com.instagram.android:id/creation_tab")
                         if el.is_displayed() and el.is_enabled():
                             el.click()
-                            log("✅ Đã nhấn nút + ở góc phải")
+                            log("✅ Đã nhấn nút + (resource-id=creation_tab, thanh dưới)")
                             clicked = True
                         else:
-                            log("❌ Nút + ở góc phải không hiển thị hoặc không click được")
-                    else:
-                        log("⚠️ Không tìm thấy đủ nút trong right_action_bar_buttons")
-                except Exception as e:
-                    log(f"⚠️ Lỗi khi tìm nút + ở góc phải: {e}")
+                            log("❌ Nút + (creation_tab) không hiển thị hoặc không click được")
+                    except Exception:
+                        log("❌ Không tìm thấy nút + bằng resource-id")
 
-            if not clicked:
-                log("❌ Không thể nhấn được nút + ở bất kỳ vị trí nào")
-
-            # - Cách 5: Dump + Phân tích XML + Nhấn nút + (fallback thông minh)
-            if not clicked:
-                try:
-                    log("[INFO] Không tìm thấy nút + bằng 3 cách trên. Đang thử Dump + Phân tích UI...")
-
-                    # 📤 1️⃣ Dump UI từ thiết bị
-                    XML_PATH_PHONE = "/sdcard/window_dump.xml"
-                    XML_PATH_PC = r"C:\Users\MINH\Downloads\AutoTool\ui.xml"
-                    subprocess.run(["adb", "-s", udid, "shell", "uiautomator", "dump", XML_PATH_PHONE], stdout=subprocess.DEVNULL)
-                    subprocess.run(["adb", "-s", udid, "pull", XML_PATH_PHONE, XML_PATH_PC], stdout=subprocess.DEVNULL)
-
-                    x_center, y_center = None, None
-
-                    # 🔍 2️⃣ Phân tích file XML để tìm vị trí nút +
-                    if os.path.exists(XML_PATH_PC):
-                        with open(XML_PATH_PC, "r", encoding="utf-8") as f:
-                            xml_content = f.read()
-
-                        # Tìm node có content-desc chứa "Create" và lấy bounds
-                        match = re.search(
-                            r'content-desc="([^"]*Create[^"]*)"[\s\S]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
-                            xml_content
+                # - Cách 3: Theo nút + ở góc trái
+                if not clicked:
+                    try:
+                        el = d.find_element(
+                            AppiumBy.XPATH,
+                            '//android.widget.LinearLayout[@resource-id="com.instagram.android:id/left_action_bar_buttons"]/android.widget.ImageView'
                         )
-                        if match:
-                            desc, x1, y1, x2, y2 = match.groups()
-                            x_center = (int(x1) + int(x2)) // 2
-                            y_center = (int(y1) + int(y2)) // 2
-                            log(f"[✅] Đã phát hiện nút '+' trong XML: desc='{desc}', tọa độ=({x_center},{y_center})")
+                        if el.is_displayed() and el.is_enabled():
+                            el.click()
+                            log("✅ Đã nhấn nút + ở góc trái")
+                            clicked = True
+                        else:
+                            log("❌ Nút + ở góc trái không hiển thị hoặc không click được")
+                    except Exception:
+                        log("❌ Không tìm thấy nút + ở góc trái")
 
-                            # 🖱️ 3️⃣ Thử click bằng content-desc nếu có
-                            try:
-                                element = d.find_element(AppiumBy.ACCESSIBILITY_ID, desc)
-                                element.click()
-                                log("[✅] Đã click nút '+' bằng accessibility id!")
+                # - Cách 4: Giao diện mới (nút '+' cạnh tên tài khoản, giữa thanh trên)
+                if not clicked:
+                    try:
+                        el_new = d.find_element(
+                            AppiumBy.XPATH,
+                            '//android.widget.ImageView[contains(@content-desc, "Create") or '
+                            'contains(@content-desc, "Tạo") or contains(@content-desc, "New") or contains(@content-desc, "+")]'
+                        )
+                        if el_new.is_displayed() and el_new.is_enabled():
+                            rect = el_new.rect
+                            x_center = rect["x"] + rect["width"] // 2
+                            y_center = rect["y"] + rect["height"] // 2
+                            if 200 < x_center < 800 and y_center < 400:  # vùng giữa trên
+                                el_new.click()
+                                log("✅ Đã nhấn nút '+' kiểu mới (cạnh tên tài khoản).")
                                 clicked = True
-                            except Exception:
-                                log("[⚠️] Không tìm thấy phần tử bằng desc, fallback về tọa độ...")
+                            else:
+                                log(f"⚠️ Phát hiện ImageView khả nghi ở ({x_center},{y_center}), bỏ qua do có thể là menu.")
+                        else:
+                            log("❌ Nút '+' kiểu mới bị ẩn hoặc không khả dụng.")
+                    except Exception:
+                        log("⚠️ Không tìm thấy nút '+' kiểu mới cạnh tên tài khoản.")
 
-                        # 🖱️ 4️⃣ Fallback: click theo tọa độ nếu có
-                        if not clicked and x_center and y_center:
-                            try:
-                                d.execute_script("mobile: clickGesture", {"x": x_center, "y": y_center})
-                                log(f"[✅] Đã click nút '+' bằng tọa độ fallback tại ({x_center}, {y_center})")
+                # - Cách 5: Dump + Phân tích XML + Nhấn nút + (fallback thông minh)
+                if not clicked:
+                    try:
+                        log("[INFO] Không tìm thấy nút + bằng 4 cách trên. Đang thử Dump + Phân tích UI...")
+
+                        XML_PATH_PHONE = "/sdcard/window_dump.xml"
+                        XML_PATH_PC = r"C:\Users\MINH\Downloads\AutoTool\ui.xml"
+
+                        subprocess.run(["adb", "-s", udid, "shell", "uiautomator", "dump", XML_PATH_PHONE],
+                                    stdout=subprocess.DEVNULL)
+                        subprocess.run(["adb", "-s", udid, "pull", XML_PATH_PHONE, XML_PATH_PC],
+                                    stdout=subprocess.DEVNULL)
+
+                        if os.path.exists(XML_PATH_PC):
+                            with open(XML_PATH_PC, "r", encoding="utf-8") as f:
+                                xml_content = f.read()
+
+                            # === 1️⃣ Tìm theo content-desc ===
+                            match = re.search(
+                                r'content-desc="([^"]*(Create|Add|New|Post|\+)[^"]*)"[\s\S]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+                                xml_content
+                            )
+
+                            if match:
+                                desc, _, x1, y1, x2, y2 = match.groups()
+                                x_center = (int(x1) + int(x2)) // 2
+                                y_center = (int(y1) + int(y2)) // 2
+                                log(f"[✅] Đã phát hiện nút '+' trong XML: desc='{desc}', tọa độ=({x_center},{y_center})")
+
+                                try:
+                                    element = d.find_element(AppiumBy.ACCESSIBILITY_ID, desc)
+                                    element.click()
+                                    log("[✅] Đã click nút '+' bằng accessibility id!")
+                                    clicked = True
+                                except Exception:
+                                    log("[⚠️] Không tìm thấy phần tử bằng desc, fallback sang tọa độ...")
+
+                            # === 2️⃣ Fallback thông minh ===
+                            if not clicked:
+                                bounds_match = re.findall(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml_content)
+
+                                # --- Vùng giữa trên (giao diện mới) ---
+                                for b in bounds_match:
+                                    x1, y1, x2, y2 = map(int, b)
+                                    if 200 < x1 < 800 and y2 < 400:
+                                        x_center = (x1 + x2) // 2
+                                        y_center = (y1 + y2) // 2
+                                        subprocess.run(
+                                            ["adb", "-s", udid, "shell", "input", "tap", str(x_center), str(y_center)],
+                                            stdout=subprocess.DEVNULL
+                                        )
+                                        log(f"[✅] Click fallback nút '+' dạng mới ở ({x_center},{y_center}) bằng adb tap")
+                                        clicked = True
+                                        break
+
+                                # --- Vùng giữa đáy ---
+                                if not clicked:
+                                    for b in bounds_match:
+                                        x1, y1, x2, y2 = map(int, b)
+                                        if 300 < x1 < 800 and y2 > 1500:
+                                            x_center = (x1 + x2) // 2
+                                            y_center = (y1 + y2) // 2
+                                            subprocess.run(
+                                                ["adb", "-s", udid, "shell", "input", "tap", str(x_center), str(y_center)],
+                                                stdout=subprocess.DEVNULL
+                                            )
+                                            log(f"[✅] Click fallback vùng giữa đáy ({x_center},{y_center}) bằng adb tap")
+                                            clicked = True
+                                            break
+
+                                # --- Vùng phải (cuối cùng, nếu chưa tìm được) ---
+                                if not clicked:
+                                    for b in bounds_match:
+                                        x1, y1, x2, y2 = map(int, b)
+                                        if x1 > 800 and y2 < 500:
+                                            x_center = (x1 + x2) // 2
+                                            y_center = (y1 + y2) // 2
+                                            subprocess.run(
+                                                ["adb", "-s", udid, "shell", "input", "tap", str(x_center), str(y_center)],
+                                                stdout=subprocess.DEVNULL
+                                            )
+                                            log(f"[✅] Click fallback vùng phải ({x_center},{y_center}) bằng adb tap")
+                                            clicked = True
+                                            break
+
+                                if not clicked:
+                                    log("❌ Không tìm thấy vùng phù hợp để click.")
+                        else:
+                            log("❌ Không tìm thấy file XML sau khi dump!")
+
+                        # 🧹 Xóa file XML sau khi dùng
+                        if os.path.exists(XML_PATH_PC):
+                            os.remove(XML_PATH_PC)
+                            log("[🧹] Đã xóa file ui.xml sau khi hoàn tất.")
+                    except Exception as e:
+                        log(f"⚠️ Lỗi khi thử cách Dump + Phân tích XML: {e}")
+
+                # - Cách 6: Theo nút + ở góc phải (đặt sau cùng, tránh nhấn nhầm menu)
+                if not clicked:
+                    try:
+                        els_right = d.find_elements(
+                            AppiumBy.XPATH,
+                            '//android.widget.LinearLayout[@resource-id="com.instagram.android:id/right_action_bar_buttons"]/android.widget.ImageView'
+                        )
+                        if len(els_right) >= 2:
+                            el = els_right[1]
+                            if el.is_displayed() and el.is_enabled():
+                                el.click()
+                                log("✅ Đã nhấn nút + ở góc phải (cách cuối cùng)")
                                 clicked = True
-                            except Exception as e:
-                                log(f"❌ Không thể click bằng tọa độ fallback: {e}")
-                    else:
-                        log("❌ Không tìm thấy file XML sau khi dump!")
+                            else:
+                                log("❌ Nút + ở góc phải không hiển thị hoặc không click được")
+                        else:
+                            log("⚠️ Không tìm thấy đủ nút trong right_action_bar_buttons")
+                    except Exception as e:
+                        log(f"⚠️ Lỗi khi tìm nút + ở góc phải: {e}")
 
-                    # 🧹 5️⃣ Xóa file XML sau khi dùng xong
-                    if os.path.exists(XML_PATH_PC):
-                        os.remove(XML_PATH_PC)
-                        log("[🧹] Đã xóa file ui.xml sau khi hoàn tất.")
-                except Exception as e:
-                    log(f"⚠️ Lỗi khi thử cách Dump + Phân tích XML: {e}")
+                time.sleep(7)
 
-            time.sleep(7)
+                # 4. Kiểm tra xem có mục Post không
+                if clicked:
+                    try:
+                        post_el = d.find_element(
+                            AppiumBy.XPATH,
+                            '//android.widget.TextView[@text="Post"]'
+                        )
+                        post_el.click()
+                        log("✅ Đã nhấn vào mục Post")
+                        time.sleep(7)
+                    except Exception:
+                        log("⚠️ Không tìm thấy mục Post, bỏ qua")
+                else:
+                    log("❌ Không nhấn được nút + nào")
+                        
+                # 5. Ấn Next 
+                for _ in range(2):
+                    clicked_next = False
+                    for txt in ["Next", "Tiếp"]:
+                        try:
+                            d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
+                            clicked_next = True
+                            time.sleep(4)
+                            break
+                        except Exception:
+                            continue
+                    if not clicked_next:
+                        break
+                time.sleep(8)
 
-            # 4. Kiểm tra xem có mục Post không
-            if clicked:
+                # 6 Nếu xuất hiện popup "Sharing posts" thì bấm OK
                 try:
-                    post_el = d.find_element(
-                        AppiumBy.XPATH,
-                        '//android.widget.TextView[@text="Post"]'
+                    ok_btn = wait.until(
+                        EC.element_to_be_clickable(
+                            (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
+                        )
                     )
-                    post_el.click()
-                    log("✅ Đã nhấn vào mục Post")
-                    time.sleep(7)
+                    if ok_btn.is_displayed():
+                        ok_btn.click()
+                        log(f"ℹ️ [{udid}] Đã bấm OK trong popup Sharing posts.")
+                        time.sleep(0.8)
                 except Exception:
-                    log("⚠️ Không tìm thấy mục Post, bỏ qua")
-            else:
-                log("❌ Không nhấn được nút + nào")
-                    
-            # 5. Ấn Next 
-            for _ in range(2):
-                clicked_next = False
-                for txt in ["Next", "Tiếp"]:
+                    pass
+                time.sleep(3)
+
+                # 7 Điền caption vào ô "Add a caption..."
+                try:
+                    caption = (
+                        random.choice(CAPTION_LEADS) + " "
+                        + random.choice(CAPTION_TRAILS) + " "
+                        + random.choice(CAPTION_EMOJIS)
+                    )
+                    # Tìm ô nhập caption (thường là EditText đầu tiên)
+                    caption_input = d.find_element(AppiumBy.CLASS_NAME, "android.widget.EditText")
+                    caption_input.clear()
+                    caption_input.send_keys(caption)
+                    log(f"✅ Đã điền caption: {caption}")
+                    time.sleep(1.5)
+                except Exception as e:
+                    log(f"⚠️ Không điền được caption: {e}")
+                time.sleep(3)
+
+                # 8 Ấn Share
+                shared = False
+                for txt in ["Share", "Chia sẻ", "Đăng"]:
                     try:
                         d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
-                        clicked_next = True
+                        shared = True
+                        break
+                    except Exception:
+                        continue
+
+                if shared:
+                    log(f"✅ [{udid}] Đã đăng bài mới.")
+                    # Update tree: POST = ✅
+                    if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                        app.after(0, lambda: update_tree_column(self.tree_item_id, "POST", "✅"))
+                else:
+                    log(f"⚠️ [{udid}] Không bấm được nút Share/Chia sẻ.")
+                    # Update tree: POST = ❌
+                    if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                        app.after(0, lambda: update_tree_column(self.tree_item_id, "POST", "❌"))
+                time.sleep(15)
+            except Exception as e:
+                log(f"❌ Lỗi khi up post: {e}")
+                # Nếu lỗi thường: restart app, KHÔNG dừng phiên
+                try:
+                    adb_shell(self.udid, "am", "force-stop", "com.instagram.android")
+                    log("🛑 Đã tắt ứng dụng Instagram (Lỗi UP POST).")
+                    time.sleep(3)
+                    adb_shell(self.udid, "monkey", "-p", "com.instagram.android", "-c", "android.intent.category.LAUNCHER", "1")
+                    log("🔁 Đã khởi động lại ứng dụng Instagram (Lỗi UP POST).")
+                    time.sleep(10)
+                except Exception as e2:
+                    log(f"⚠️ Lỗi khi khởi động lại app sau crash: {e2}")
+                log("➡️ Tiếp tục quy trình, không dừng phiên.")
+                time.sleep(4)
+
+        # ==== AUTO FOLLOW ====
+        pause_event.wait()
+        if enable_autofollow.get():
+            try:
+                clicked = False
+                # 1. Thử theo content-desc "Search and explore"
+                try:
+                    el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search and explore")
+                    el.click()
+                    log("✅ Đã nhấn nút kính lúp (Search and explore)")
+                    clicked = True
+                except Exception:
+                    log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search and explore'")
+
+                # 2. Thử theo content-desc "Search"
+                if not clicked:
+                    try:
+                        el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search")
+                        el.click()
+                        log("✅ Đã nhấn nút kính lúp (Search)")
+                        clicked = True
+                    except Exception:
+                        log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search'")
+
+                # 3. Thử bằng UiAutomator textContains
+                if not clicked:
+                    try:
+                        el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Search")')
+                        el.click()
+                        log("✅ Đã nhấn nút kính lúp (descriptionContains 'Search')")
+                        clicked = True
+                    except Exception:
+                        log("❌ Không tìm thấy nút kính lúp bằng descriptionContains 'Search'")
+
+                time.sleep(4)
+
+                # 1. Tìm ô nhập Search
+                input_box = None
+                for how, what in [
+                    (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
+                    (AppiumBy.CLASS_NAME, "android.widget.EditText"),
+                ]:
+                    try:
+                        input_box = d.find_element(how, what)
+                        input_box.click()
                         time.sleep(4)
                         break
                     except Exception:
                         continue
-                if not clicked_next:
-                    break
-            time.sleep(8)
 
-            # 6 Nếu xuất hiện popup "Sharing posts" thì bấm OK
-            try:
-                ok_btn = wait.until(
-                    EC.element_to_be_clickable(
-                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
-                    )
-                )
-                if ok_btn.is_displayed():
-                    ok_btn.click()
-                    log(f"ℹ️ [{udid}] Đã bấm OK trong popup Sharing posts.")
-                    time.sleep(0.8)
-            except Exception:
-                pass
-            time.sleep(3)
-
-            # 7 Điền caption vào ô "Add a caption..."
-            try:
-                caption = (
-                    random.choice(CAPTION_LEADS) + " "
-                    + random.choice(CAPTION_TRAILS) + " "
-                    + random.choice(CAPTION_EMOJIS)
-                )
-                # Tìm ô nhập caption (thường là EditText đầu tiên)
-                caption_input = d.find_element(AppiumBy.CLASS_NAME, "android.widget.EditText")
-                caption_input.clear()
-                caption_input.send_keys(caption)
-                log(f"✅ Đã điền caption: {caption}")
-                time.sleep(1.5)
-            except Exception as e:
-                log(f"⚠️ Không điền được caption: {e}")
-            time.sleep(3)
-
-            # 8 Ấn Share
-            shared = False
-            for txt in ["Share", "Chia sẻ", "Đăng"]:
-                try:
-                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
-                    shared = True
-                    break
-                except Exception:
-                    continue
-
-            if shared:
-                log(f"✅ [{udid}] Đã đăng bài mới.")
-                # Update tree: POST = ✅
-                if hasattr(self, 'tree_item_id') and self.tree_item_id:
-                    app.after(0, lambda: update_tree_column(self.tree_item_id, "POST", "✅"))
-            else:
-                log(f"⚠️ [{udid}] Không bấm được nút Share/Chia sẻ.")
-                # Update tree: POST = ❌
-                if hasattr(self, 'tree_item_id') and self.tree_item_id:
-                    app.after(0, lambda: update_tree_column(self.tree_item_id, "POST", "❌"))
-            time.sleep(15)
-        
-        # ==== AUTO FOLLOW ====
-        pause_event.wait()
-        if enable_autofollow.get():  
-            clicked = False
-            # 1. Thử theo content-desc "Search and explore"
-            try:
-                el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search and explore")
-                el.click()
-                log("✅ Đã nhấn nút kính lúp (Search and explore)")
-                clicked = True
-            except Exception:
-                log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search and explore'")
-
-            # 2. Thử theo content-desc "Search"
-            if not clicked:
-                try:
-                    el = d.find_element(AppiumBy.ACCESSIBILITY_ID, "Search")
-                    el.click()
-                    log("✅ Đã nhấn nút kính lúp (Search)")
-                    clicked = True
-                except Exception:
-                    log("❌ Không tìm thấy nút kính lúp bằng content-desc 'Search'")
-
-            # 3. Thử bằng UiAutomator textContains
-            if not clicked:
-                try:
-                    el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Search")')
-                    el.click()
-                    log("✅ Đã nhấn nút kính lúp (descriptionContains 'Search')")
-                    clicked = True
-                except Exception:
-                    log("❌ Không tìm thấy nút kính lúp bằng descriptionContains 'Search'")
-
-            time.sleep(4)
-
-            # 1. Tìm ô nhập Search
-            input_box = None
-            for how, what in [
-                (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
-                (AppiumBy.CLASS_NAME, "android.widget.EditText"),
-            ]:
-                try:
-                    input_box = d.find_element(how, what)
-                    input_box.click()
-                    time.sleep(4)
-                    break
-                except Exception:
-                    continue
-
-            if not input_box:
-                log("❌ Không tìm thấy ô nhập Search")
-            else:
-                # 2. Lấy số lượng follow từ biến UI
-                try:
-                    follow_count = phone_follow_count_var.get()
-                except Exception:
-                    follow_count = 10
-
-                FOLLOW_USERNAMES = [
-                    "n.nhu1207","v.anh.26","shxuy0bel421162","shx_pe06","nguyen57506",
-                    "mhai_187","ductoan1103","datgia172","nhd_305.nh","monkeycatluna",
-                ]
-                follow_list = random.sample(FOLLOW_USERNAMES, min(follow_count, len(FOLLOW_USERNAMES)))
-                followed = 0
-
-                for username in follow_list:
-                    # Tìm lại ô nhập Search
-                    input_box = None
-                    for how, what in [
-                        (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
-                        (AppiumBy.CLASS_NAME, "android.widget.EditText"),
-                    ]:
-                        try:
-                            input_box = d.find_element(how, what)
-                            input_box.click()
-                            break
-                        except Exception:
-                            continue
-
-                    if not input_box:
-                        log("❌ Không tìm thấy ô nhập Search khi follow username mới")
-                        continue
-
-                    # Nhập username (send_keys fallback set_text hoặc ADB)
+                if not input_box:
+                    log("❌ Không tìm thấy ô nhập Search")
+                else:
+                    # 2. Lấy số lượng follow từ biến UI
                     try:
-                        input_box.clear()
+                        follow_count = phone_follow_count_var.get()
                     except Exception:
-                        pass
-                    try:
-                        input_box.send_keys(username)
-                        log(f"⌨️ Nhập username bằng send_keys: {username}")
-                    except Exception:
-                        try:
-                            input_box.set_text(username)
-                            log(f"⌨️ Nhập username bằng set_text: {username}")
-                        except Exception:
+                        follow_count = 10
+
+                    FOLLOW_USERNAMES = [
+                        "n.nhu1207","v.anh.26","shxuy0bel421162","shx_pe06","nguyen57506",
+                        "mhai_187","ductoan1103","ductoannn111","datgia172","nhd_305.nh","monkeycatluna",
+                    ]
+                    follow_list = random.sample(FOLLOW_USERNAMES, min(follow_count, len(FOLLOW_USERNAMES)))
+                    followed = 0
+
+                    for username in follow_list:
+                        # Tìm lại ô nhập Search
+                        input_box = None
+                        for how, what in [
+                            (AppiumBy.ID, "com.instagram.android:id/action_bar_search_edit_text"),
+                            (AppiumBy.CLASS_NAME, "android.widget.EditText"),
+                        ]:
                             try:
-                                # ✅ Fallback cuối: Dùng ADB input text thay vì JavaScript
-                                subprocess.call(["adb", "-s", self.udid, "shell", "input", "text", username])
-                                log(f"⌨️ Nhập username bằng ADB input text: {username}")
-                            except Exception as e:
-                                log(f"❌ Không nhập được {username}: {e}")
-                                continue
-                    time.sleep(5)
-
-                    # Tìm đúng username trong kết quả
-                    found = False
-                    results = d.find_elements(AppiumBy.ID, "com.instagram.android:id/row_search_user_username")
-                    if not results:
-                        results = d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{username}")')
-                    for el in results:
-                        try:
-                            t = (el.text or "").strip()
-                            if t.lower() == username.lower() or username.lower() in t.lower():
-                                el.click()
-                                log(f"✅ Đã nhấn vào username: {username}")
-                                found = True
+                                input_box = d.find_element(how, what)
+                                input_box.click()
                                 break
-                        except Exception:
+                            except Exception:
+                                continue
+
+                        if not input_box:
+                            log("❌ Không tìm thấy ô nhập Search khi follow username mới")
                             continue
 
-                    if not found:
-                        log(f"❌ Không tìm thấy username {username} trong kết quả tìm kiếm")
-                        continue
-
-                    time.sleep(5)
-
-                    # Nhấn nút Follow
-                    try:
-                        follow_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Follow")')
-                        if follow_btn.is_enabled() and follow_btn.is_displayed():
-                            follow_btn.click()
-                            log(f"✅ Đã nhấn Follow cho {username}")
-                            time.sleep(3)
-                            followed += 1
-                                        
-                            # Update tree: FOLLOW = số lượng/tổng số
-                            if hasattr(self, 'tree_item_id') and self.tree_item_id:
-                                follow_status = f"{followed}/{follow_count}"
-                                app.after(0, lambda fs=follow_status: update_tree_column(self.tree_item_id, "FOLLOW", fs))
-
-                            # --- Kiểm tra popup block follow ---
+                        # Nhập username (send_keys fallback set_text hoặc ADB)
+                        try:
+                            input_box.clear()
+                        except Exception:
+                            pass
+                        try:
+                            input_box.send_keys(username)
+                            log(f"⌨️ Nhập username bằng send_keys: {username}")
+                        except Exception:
                             try:
-                                popup = d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Try Again Later")')
-                                if popup:
-                                    log("⛔ Instagram đã block follow: Try Again Later popup xuất hiện.")
-                                    try:
-                                        ok_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
-                                        ok_btn.click()
-                                        log("✅ Đã ấn OK để đóng popup block follow.")
-                                    except Exception:
-                                        log("⚠️ Không tìm thấy nút OK trong popup.")
-                                    break
-                            except Exception as e:
-                                log(f"⚠️ Lỗi khi kiểm tra popup block follow: {e}")
-                            time.sleep(2)
-
-                            # --- Back sau khi follow (2 lần) ---
-                            for i in range(2):
-                                back_clicked = False
+                                input_box.set_text(username)
+                                log(f"⌨️ Nhập username bằng set_text: {username}")
+                            except Exception:
                                 try:
-                                    for desc in ["Back", "Điều hướng lên"]:
-                                        try:
-                                            back_btn = d.find_element(AppiumBy.ACCESSIBILITY_ID, desc)
-                                            back_btn.click()
-                                            log(f"🔙 Đã nhấn nút mũi tên lùi lần {i+1} ({desc})")
-                                            back_clicked = True
-                                            time.sleep(2)
-                                            break
-                                        except Exception:
-                                            continue
-                                    if not back_clicked:
-                                        btns = d.find_elements(AppiumBy.CLASS_NAME, "android.widget.ImageButton")
-                                        if btns:
-                                            btns[0].click()
-                                            log(f"🔙 Đã nhấn nút mũi tên lùi lần {i+1}")
-                                            back_clicked = True
-                                            time.sleep(2)
-                                    if not back_clicked:
-                                        d.back()
-                                        log(f"🔙 Đã Ấn Back lần {i+1}")
-                                        time.sleep(2)
-                                except Exception:
-                                    log(f"⚠️ Không tìm thấy nút mũi tên lùi lần {i+1} sau khi Follow")
-                        else:
-                            log(f"❌ Nút Follow không khả dụng trên profile {username}")
-                    except Exception:
-                        log(f"❌ Không tìm thấy nút Follow trên profile {username}")
+                                    # ✅ Fallback cuối: Dùng ADB input text thay vì JavaScript
+                                    subprocess.call(["adb", "-s", self.udid, "shell", "input", "text", username])
+                                    log(f"⌨️ Nhập username bằng ADB input text: {username}")
+                                except Exception as e:
+                                    log(f"❌ Không nhập được {username}: {e}")
+                                    continue
+                        time.sleep(5)
 
-                    if followed >= follow_count:
-                        break
+                        # Tìm đúng username trong kết quả
+                        found = False
+                        results = d.find_elements(AppiumBy.ID, "com.instagram.android:id/row_search_user_username")
+                        if not results:
+                            results = d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{username}")')
+                        for el in results:
+                            try:
+                                t = (el.text or "").strip()
+                                if t.lower() == username.lower() or username.lower() in t.lower():
+                                    el.click()
+                                    log(f"✅ Đã nhấn vào username: {username}")
+                                    found = True
+                                    break
+                            except Exception:
+                                continue
+
+                        if not found:
+                            log(f"❌ Không tìm thấy username {username} trong kết quả tìm kiếm")
+                            continue
+
+                        time.sleep(5)
+
+                        # Nhấn nút Follow
+                        try:
+                            follow_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("Follow")')
+                            if follow_btn.is_enabled() and follow_btn.is_displayed():
+                                follow_btn.click()
+                                log(f"✅ Đã nhấn Follow cho {username}")
+                                time.sleep(3)
+                                followed += 1
+                                            
+                                # Update tree: FOLLOW = số lượng/tổng số
+                                if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                                    follow_status = f"{followed}/{follow_count}"
+                                    app.after(0, lambda fs=follow_status: update_tree_column(self.tree_item_id, "FOLLOW", fs))
+
+                                # --- Kiểm tra popup block follow ---
+                                try:
+                                    popup = d.find_elements(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Try Again Later")')
+                                    if popup:
+                                        log("⛔ Instagram đã block follow: Try Again Later popup xuất hiện.")
+                                        try:
+                                            ok_btn = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("OK")')
+                                            ok_btn.click()
+                                            log("✅ Đã ấn OK để đóng popup block follow.")
+                                        except Exception:
+                                            log("⚠️ Không tìm thấy nút OK trong popup.")
+                                        break
+                                except Exception as e:
+                                    log(f"⚠️ Lỗi khi kiểm tra popup block follow: {e}")
+                                time.sleep(2)
+
+                                # --- Back sau khi follow (2 lần) ---
+                                for i in range(2):
+                                    back_clicked = False
+                                    try:
+                                        for desc in ["Back", "Điều hướng lên"]:
+                                            try:
+                                                back_btn = d.find_element(AppiumBy.ACCESSIBILITY_ID, desc)
+                                                back_btn.click()
+                                                log(f"🔙 Đã nhấn nút mũi tên lùi lần {i+1} ({desc})")
+                                                back_clicked = True
+                                                time.sleep(2)
+                                                break
+                                            except Exception:
+                                                continue
+                                        if not back_clicked:
+                                            btns = d.find_elements(AppiumBy.CLASS_NAME, "android.widget.ImageButton")
+                                            if btns:
+                                                btns[0].click()
+                                                log(f"🔙 Đã nhấn nút mũi tên lùi lần {i+1}")
+                                                back_clicked = True
+                                                time.sleep(2)
+                                        if not back_clicked:
+                                            d.back()
+                                            log(f"🔙 Đã Ấn Back lần {i+1}")
+                                            time.sleep(2)
+                                    except Exception:
+                                        log(f"⚠️ Không tìm thấy nút mũi tên lùi lần {i+1} sau khi Follow")
+                            else:
+                                log(f"❌ Nút Follow không khả dụng trên profile {username}")
+                        except Exception:
+                            log(f"❌ Không tìm thấy nút Follow trên profile {username}")
+
+                        if followed >= follow_count:
+                            break
+            except Exception as e:
+                log(f"❌ Lỗi khi auto follow: {e}")
+                # Nếu lỗi thường: restart app, KHÔNG dừng phiên
+                try:
+                    adb_shell(self.udid, "am", "force-stop", "com.instagram.android")
+                    log("🛑 Đã tắt ứng dụng Instagram (Follow Lỗi).")
+                    time.sleep(3)
+                    adb_shell(self.udid, "monkey", "-p", "com.instagram.android", "-c", "android.intent.category.LAUNCHER", "1")
+                    log("🔁 Đã khởi động lại ứng dụng Instagram (Follow Lỗi).")
+                    time.sleep(10)
+                except Exception as e2:
+                    log(f"⚠️ Lỗi khi khởi động lại app sau crash: {e2}")
+                log("➡️ Tiếp tục quy trình, không dừng phiên.")
+                time.sleep(4)
 
         # ==== EDIT PROFILE (AVATAR + BIO) NẾU CÓ CHỌN ====
         pause_event.wait()
         if enable_editprofile.get():
-            # --- Vào Profile ---
-            subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
-            log("👤 Đã vào Profile")
-            time.sleep(10)
-            # Nhấn Edit profile
             try:
-                log("Đang tìm nút 'Edit profile'...")
-                edit_profile_btn = None
+                # --- Vào Profile ---
+                subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
+                log("👤 Đã vào Profile")
+                time.sleep(10)
+                # Nhấn Edit profile
                 try:
-                    edit_profile_btn = WebDriverWait(d, 8).until(
-                        EC.presence_of_element_located((
-                            AppiumBy.ANDROID_UIAUTOMATOR,
-                            'new UiSelector().text("Edit profile")'
-                        ))
-                    )
-                except Exception:
-                    log("[ERROR] Không tìm thấy nút 'Edit profile'.")
-                    return
-                if edit_profile_btn:
-                    edit_profile_btn.click()
-                    log("Đã nhấn nút 'Edit profile'.")
-                    time.sleep(5)
-                else:
-                    log("Lỗi Không tìm thấy nút 'Edit profile'.")
-            except Exception as e:
-                log(f"Lỗi khi nhấn nút 'Edit profile': {e}")
+                    log("Đang tìm nút 'Edit profile'...")
+                    edit_profile_btn = None
+                    try:
+                        edit_profile_btn = WebDriverWait(d, 8).until(
+                            EC.presence_of_element_located((
+                                AppiumBy.ANDROID_UIAUTOMATOR,
+                                'new UiSelector().text("Edit profile")'
+                            ))
+                        )
+                    except Exception:
+                        log("[ERROR] Không tìm thấy nút 'Edit profile'.")
+                        return
+                    if edit_profile_btn:
+                        edit_profile_btn.click()
+                        log("Đã nhấn nút 'Edit profile'.")
+                        time.sleep(5)
+                    else:
+                        log("Lỗi Không tìm thấy nút 'Edit profile'.")
+                except Exception as e:
+                    log(f"Lỗi khi nhấn nút 'Edit profile': {e}")
 
-            # Nếu không phải Share profile, thì check popup avatar
-            try:
-                notnow = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
-                                        'new UiSelector().textContains("Not now")')
-                notnow.click()
-                log("✅ Đã ấn Not now ở popup tạo avatar")
-            except Exception:
-                pass  # Không có popup thì bỏ qua
-            
-            # UP AVATAR 
-            avatar_success = False
-            try:
-                # 1. Tìm và ấn vào "Change profile picture"
-                el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Change profile picture")')
+                # Nếu không phải Share profile, thì check popup avatar
+                try:
+                    notnow = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
+                                            'new UiSelector().textContains("Not now")')
+                    notnow.click()
+                    log("✅ Đã ấn Not now ở popup tạo avatar")
+                except Exception:
+                    pass  # Không có popup thì bỏ qua
+                
+                # UP AVATAR 
+                avatar_success = False
+                try:
+                    # 1. Tìm và ấn vào "Change profile picture"
+                    el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Change profile picture")')
+                    el.click()
+                    log("✅ Đã nhấn Change profile picture")
+                    time.sleep(3)
+
+                    # 2. Chọn "Choose from library"
+                    choose = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Choose from library")')
+                    choose.click()
+                    log("✅ Đã chọn Choose from library")
+                    time.sleep(6)
+
+                    # 3. Ấn "Done" (góc phải trên)
+                    for txt in ["Done", "Next", "Tiếp", "Xong", "Lưu"]:
+                        try:
+                            d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
+                            avatar_success = True
+                            break
+                        except Exception:
+                            pass
+                    time.sleep(13)
+                except Exception as e:
+                    log(f"❌ Lỗi khi upload avatar: {e}")
+                    avatar_success = False
+                
+                # Update tree: AVATAR
+                if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                    avatar_status = "✅" if avatar_success else "❌"
+                    app.after(0, lambda: update_tree_column(self.tree_item_id, "AVATAR", avatar_status))
+
+                # Nhấn Edit profile
+                try:
+                    log("Đang tìm nút 'Edit profile'...")
+                    edit_profile_btn = None
+                    try:
+                        edit_profile_btn = WebDriverWait(d, 8).until(
+                            EC.presence_of_element_located((
+                                AppiumBy.ANDROID_UIAUTOMATOR,
+                                'new UiSelector().text("Edit profile")'
+                            ))
+                        )
+                    except Exception:
+                        log("Lỗi Không tìm thấy nút 'Edit profile'.")
+                        return
+                    if edit_profile_btn:
+                        edit_profile_btn.click()
+                        log("Đã nhấn nút 'Edit profile'.")
+                        time.sleep(5)
+                    else:
+                        log("Lỗi Không tìm thấy nút 'Edit profile'.")
+                except Exception as e:
+                    log(f"Lỗi khi nhấn nút 'Edit profile': {e}")
+
+                # =============== EDIT BIO ===============
+                # 1. Ấn vào label Bio
+                el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Bio")')
                 el.click()
-                log("✅ Đã nhấn Change profile picture")
+                log("✅ Đã nhấn vào label Bio")
                 time.sleep(3)
 
-                # 2. Chọn "Choose from library"
-                choose = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Choose from library")')
-                choose.click()
-                log("✅ Đã chọn Choose from library")
-                time.sleep(6)
+                # 2. Tạo bio ngẫu nhiên từ BIO_LINES + emoji
+                bio = random.choice(BIO_LINES) + " " + random.choice(CAPTION_EMOJIS)
+                time.sleep(3)
 
-                # 3. Ấn "Done" (góc phải trên)
-                for txt in ["Done", "Next", "Tiếp", "Xong", "Lưu"]:
+                # 3. Điền bio vào ô nhập
+                input_bio = d.find_element(AppiumBy.CLASS_NAME, "android.widget.EditText")
+                input_bio.clear()
+                input_bio.send_keys(bio)
+                log(f"✅ Đã điền bio: {bio}")
+                time.sleep(3)
+
+                # 4) Lưu: icon ✓ góc trên phải hoặc nút Save/Xong/Lưu
+                saved = False
+                # a) thử theo text
+                for txt in ["Save", "Lưu", "Done", "Xong", "✓"]:
                     try:
-                        d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")').click()
-                        avatar_success = True
+                        d.find_element(
+                            AppiumBy.ANDROID_UIAUTOMATOR,
+                            f'new UiSelector().textContains("{txt}")'
+                        ).click()
+                        saved = True
                         break
                     except Exception:
                         pass
-                time.sleep(13)
-            except Exception as e:
-                log(f"❌ Lỗi khi upload avatar: {e}")
-                avatar_success = False
-            
-            # Update tree: AVATAR
-            if hasattr(self, 'tree_item_id') and self.tree_item_id:
-                avatar_status = "✅" if avatar_success else "❌"
-                app.after(0, lambda: update_tree_column(self.tree_item_id, "AVATAR", avatar_status))
+                # b) thử content-desc của icon ✓
+                if not saved:
+                    for how, what in [
+                        (AppiumBy.ACCESSIBILITY_ID, "Done"),
+                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Done")'),
+                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionMatches("(?i)(save|done|xong|lưu|check)")'),
+                    ]:
+                        try:
+                            el = d.find_element(how, what)
+                            el.click()
+                            saved = True
+                            break
+                        except Exception:
+                            continue
 
-            # Nhấn Edit profile
-            try:
-                log("Đang tìm nút 'Edit profile'...")
-                edit_profile_btn = None
-                try:
-                    edit_profile_btn = WebDriverWait(d, 8).until(
-                        EC.presence_of_element_located((
-                            AppiumBy.ANDROID_UIAUTOMATOR,
-                            'new UiSelector().text("Edit profile")'
-                        ))
-                    )
-                except Exception:
-                    log("Lỗi Không tìm thấy nút 'Edit profile'.")
-                    return
-                if edit_profile_btn:
-                    edit_profile_btn.click()
-                    log("Đã nhấn nút 'Edit profile'.")
-                    time.sleep(5)
+                if saved:
+                    log(f"✅ [{udid}] Đã cập nhật Bio")
                 else:
-                    log("Lỗi Không tìm thấy nút 'Edit profile'.")
+                    log(f"⚠️ [{udid}] Không bấm được nút Lưu/✓ trong màn Bio.")
+                
+                # Update tree: BIO
+                if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                    bio_status = "✅" if saved else "❌"
+                    app.after(0, lambda: update_tree_column(self.tree_item_id, "BIO", bio_status))
+
+                time.sleep(6)
+
+                #============== EDIT GENDER ===============
+                # 1. Cuộn xuống để thấy label Gender (nếu cần)
+                d.swipe(500, 1500, 500, 500, 500)  # Điều chỉnh tọa độ nếu cần
+                time.sleep(3)
+
+                # 2. Ấn vào label Gender (Prefer not to say)
+                el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Prefer not to say")')
+                el.click()
+                log("✅ Đã nhấn vào label Gender")
+                time.sleep(3)
+
+                # 3. Chọn Female
+                female = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Female")')
+                female.click()
+                log("✅ Đã chọn Female")
+
+                time.sleep(0.5)
+
+                # 6) Lưu: icon ✓ góc trên phải hoặc nút Save/Xong/Lưu
+                saved = False
+                # a) thử theo text
+                for txt in ["Save", "Lưu", "Done", "Xong", "✓"]:
+                    try:
+                        d.find_element(
+                            AppiumBy.ANDROID_UIAUTOMATOR,
+                            f'new UiSelector().textContains("{txt}")'
+                        ).click()
+                        saved = True
+                        break
+                    except Exception:
+                        pass
+                # b) thử content-desc của icon ✓
+                if not saved:
+                    for how, what in [
+                        (AppiumBy.ACCESSIBILITY_ID, "Done"),
+                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Done")'),
+                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionMatches("(?i)(save|done|xong|lưu|check)")'),
+                    ]:
+                        try:
+                            el = d.find_element(how, what)
+                            el.click()
+                            saved = True
+                            break
+                        except Exception:
+                            continue
+
+                if saved:
+                    log(f"✅ [{udid}] Đã cập nhật Gender")
+                else:
+                    log(f"⚠️ [{udid}] Không bấm được nút Lưu/✓ trong màn Gender.")
+                
+                # Update tree: GENDER
+                if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                    gender_status = "✅" if saved else "❌"
+                    app.after(0, lambda: update_tree_column(self.tree_item_id, "GENDER", gender_status))
+                
+                time.sleep(6)
             except Exception as e:
-                log(f"Lỗi khi nhấn nút 'Edit profile': {e}")
-
-            # =============== EDIT BIO ===============
-            # 1. Ấn vào label Bio
-            el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Bio")')
-            el.click()
-            log("✅ Đã nhấn vào label Bio")
-            time.sleep(3)
-
-            # 2. Tạo bio ngẫu nhiên từ BIO_LINES + emoji
-            bio = random.choice(BIO_LINES) + " " + random.choice(CAPTION_EMOJIS)
-            time.sleep(3)
-
-            # 3. Điền bio vào ô nhập
-            input_bio = d.find_element(AppiumBy.CLASS_NAME, "android.widget.EditText")
-            input_bio.clear()
-            input_bio.send_keys(bio)
-            log(f"✅ Đã điền bio: {bio}")
-            time.sleep(3)
-
-            # 4) Lưu: icon ✓ góc trên phải hoặc nút Save/Xong/Lưu
-            saved = False
-            # a) thử theo text
-            for txt in ["Save", "Lưu", "Done", "Xong", "✓"]:
+                log(f"❌ Lỗi khi edit profile: {e}")
+                # Nếu lỗi thường: restart app, KHÔNG dừng phiên
                 try:
-                    d.find_element(
-                        AppiumBy.ANDROID_UIAUTOMATOR,
-                        f'new UiSelector().textContains("{txt}")'
-                    ).click()
-                    saved = True
-                    break
-                except Exception:
-                    pass
-            # b) thử content-desc của icon ✓
-            if not saved:
-                for how, what in [
-                    (AppiumBy.ACCESSIBILITY_ID, "Done"),
-                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Done")'),
-                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionMatches("(?i)(save|done|xong|lưu|check)")'),
-                ]:
-                    try:
-                        el = d.find_element(how, what)
-                        el.click()
-                        saved = True
-                        break
-                    except Exception:
-                        continue
-
-            if saved:
-                log(f"✅ [{udid}] Đã cập nhật Bio")
-            else:
-                log(f"⚠️ [{udid}] Không bấm được nút Lưu/✓ trong màn Bio.")
-            
-            # Update tree: BIO
-            if hasattr(self, 'tree_item_id') and self.tree_item_id:
-                bio_status = "✅" if saved else "❌"
-                app.after(0, lambda: update_tree_column(self.tree_item_id, "BIO", bio_status))
-
-            time.sleep(6)
-
-            #============== EDIT GENDER ===============
-            # 1. Cuộn xuống để thấy label Gender (nếu cần)
-            d.swipe(500, 1500, 500, 500, 500)  # Điều chỉnh tọa độ nếu cần
-            time.sleep(3)
-
-            # 2. Ấn vào label Gender (Prefer not to say)
-            el = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Prefer not to say")')
-            el.click()
-            log("✅ Đã nhấn vào label Gender")
-            time.sleep(3)
-
-            # 3. Chọn Female
-            female = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Female")')
-            female.click()
-            log("✅ Đã chọn Female")
-
-            time.sleep(0.5)
-
-            # 6) Lưu: icon ✓ góc trên phải hoặc nút Save/Xong/Lưu
-            saved = False
-            # a) thử theo text
-            for txt in ["Save", "Lưu", "Done", "Xong", "✓"]:
-                try:
-                    d.find_element(
-                        AppiumBy.ANDROID_UIAUTOMATOR,
-                        f'new UiSelector().textContains("{txt}")'
-                    ).click()
-                    saved = True
-                    break
-                except Exception:
-                    pass
-            # b) thử content-desc của icon ✓
-            if not saved:
-                for how, what in [
-                    (AppiumBy.ACCESSIBILITY_ID, "Done"),
-                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionContains("Done")'),
-                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().descriptionMatches("(?i)(save|done|xong|lưu|check)")'),
-                ]:
-                    try:
-                        el = d.find_element(how, what)
-                        el.click()
-                        saved = True
-                        break
-                    except Exception:
-                        continue
-
-            if saved:
-                log(f"✅ [{udid}] Đã cập nhật Gender")
-            else:
-                log(f"⚠️ [{udid}] Không bấm được nút Lưu/✓ trong màn Gender.")
-            
-            # Update tree: GENDER
-            if hasattr(self, 'tree_item_id') and self.tree_item_id:
-                gender_status = "✅" if saved else "❌"
-                app.after(0, lambda: update_tree_column(self.tree_item_id, "GENDER", gender_status))
-            
-            time.sleep(6)
+                    adb_shell(self.udid, "am", "force-stop", "com.instagram.android")
+                    log("🛑 Đã tắt ứng dụng Instagram (Lỗi EDIT PROFILE).")
+                    time.sleep(3)
+                    adb_shell(self.udid, "monkey", "-p", "com.instagram.android", "-c", "android.intent.category.LAUNCHER", "1")
+                    log("🔁 Đã khởi động lại ứng dụng Instagram (Lỗi EDIT PROFILE).")
+                    time.sleep(10)
+                except Exception as e2:
+                    log(f"⚠️ Lỗi khi khởi động lại app sau crash: {e2}")
+                log("➡️ Tiếp tục quy trình, không dừng phiên.")
+                time.sleep(4)
         
         # ==== CHUYỂN SANG PRO ACCOUNT NẾU CÓ CHỌN ====
         pause_event.wait()
         if enable_proaccount.get():
-            # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
-            d.swipe(500, 1500, 500, 500, 500) 
-            time.sleep(5)
-
-            # 2) Cuộn và bấm "Switch to professional account"
-            if not _scroll_into_view_by_text(d, "Switch to professional"):
-                log(f"⚠️ [{udid}] Không tìm thấy mục 'Switch to professional account'.")
-                # Update tree: PROFESSIONAL = ❌
-                if hasattr(self, 'tree_item_id') and self.tree_item_id:
-                    app.after(0, lambda: update_tree_column(self.tree_item_id, "PROFESSIONAL", "❌"))
-                return
-            wait.until(EC.element_to_be_clickable(
-                (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Switch to professional")'))
-            ).click()
-            time.sleep(10)
-
-            # 3) Màn giới thiệu → Next
-            for txt in ["Next", "Tiếp"]:
-                try:
-                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{txt}")').click()
-                    break
-                except Exception:
-                    pass
-            time.sleep(6)
-
-            # 4) Màn "What best describes you?" → chọn Category
-            # 4a) Tap vào ô "Search categories" (hoặc "Search")
             try:
-                wait.until(EC.element_to_be_clickable(
-                    (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Search")')
-                )).click()
-            except Exception:
-                # nếu không bấm được ô search, vẫn có thể chọn trực tiếp trong list
-                pass
+                # --- Kiểm tra nếu đã ở màn Edit profile hay chưa ---
+                try:
+                    # Tìm xem có ô "Bio" hoặc "Change profile picture" → đang ở màn Edit profile
+                    in_edit = False
+                    for txt in ["Change profile picture", "Bio"]:
+                        try:
+                            d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{txt}")')
+                            in_edit = True
+                            break
+                        except Exception:
+                            continue
 
-            # 4b) Lấy giá trị category và account_type từ settings UI
-            category = pro_category_var.get() if 'pro_category_var' in globals() else "Reel creator"
-            account_type = pro_type_var.get() if 'pro_type_var' in globals() else "Creator"
+                    if in_edit:
+                        log("ℹ️ Đang ở trong màn Edit profile, bỏ qua thao tác vào Profile.")
+                    else:
+                        # --- Vào Profile ---
+                        subprocess.call(["adb", "-s", self.udid, "shell", "input", "tap", "1000", "1850"])
+                        log("👤 Đã vào Profile")
+                        time.sleep(6)
 
-            target = (category or "").strip()
-            if target:
-                if not _scroll_into_view_by_text(d, target, swipe_delay=0.7, max_swipes=10):
-                    log(f"⚠️ [{udid}] Không tìm thấy category '{target}'.")
-                    # Update tree: PROFESSIONAL = ❌
+                        # === Nhấn Edit profile ===
+                        try:
+                            edit_btn = WebDriverWait(d, 8).until(
+                                EC.presence_of_element_located((AppiumBy.ANDROID_UIAUTOMATOR,
+                                                                'new UiSelector().text("Edit profile")'))
+                            )
+                            edit_btn.click()
+                            log("✅ Đã nhấn nút Edit profile")
+                            time.sleep(5)
+                        except Exception as e:
+                            log(f"⚠️ Không tìm thấy hoặc lỗi khi nhấn Edit profile: {e}")
+
+                        # === Nếu có popup Avatar "Not now" ===
+                        try:
+                            notnow = d.find_element(AppiumBy.ANDROID_UIAUTOMATOR,
+                                                    'new UiSelector().textContains("Not now")')
+                            notnow.click()
+                            log("✅ Đã ấn Not now ở popup tạo avatar")
+                        except Exception:
+                            pass
+                except Exception as e:
+                    log(f"⚠️ Lỗi khi kiểm tra hoặc vào Edit profile: {e}")
+                # 1. Cuộn xuống để thấy switch sang Pro Account (nếu cần)
+                d.swipe(500, 1500, 500, 500, 500)
+                time.sleep(5)
+
+                # 2) Cuộn và bấm "Switch to professional account"
+                if not _scroll_into_view_by_text(d, "Switch to professional"):
+                    log(f"⚠️ [{udid}] Không tìm thấy mục 'Switch to professional account'.")
                     if hasattr(self, 'tree_item_id') and self.tree_item_id:
                         app.after(0, lambda: update_tree_column(self.tree_item_id, "PROFESSIONAL", "❌"))
-                    return
-                # chọn đúng item
-                wait.until(EC.element_to_be_clickable(
-                    (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{target}")'))
-                ).click()
-                time.sleep(4)
-
-            #Tap display on profile
-            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "970", "900"])
-            log("✅ Tap Display On Profile")
-            time.sleep(4)
-
-            # 4d) Bấm "Switch to professional account"
-            for txt in ["Switch to professional account"]:
-                try:
-                    if not _scroll_into_view_by_text(d, txt, max_swipes=2):
-                        pass
-                    d.find_element(
-                        AppiumBy.ANDROID_UIAUTOMATOR,
-                        f'new UiSelector().textContains("{txt}")'
+                else:
+                    wait.until(EC.element_to_be_clickable(
+                        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Switch to professional")'))
                     ).click()
-                    break
-                except Exception:
-                    continue
-            time.sleep(12)
+                    time.sleep(10)
 
-            # 5) Màn "What type of professional are you?" → chọn Creator/Business → Next
-            typ = (account_type or "").strip().lower()
-            target_type = "Creator" if typ != "business" else "Business"
-            try:
-                wait.until(EC.element_to_be_clickable(
-                    (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{target_type}")'))
-                ).click()
-            except Exception:
-                d.find_element(
-                    AppiumBy.ANDROID_UIAUTOMATOR,
-                    f'new UiSelector().textContains("{target_type}")'
-                ).click()
-            time.sleep(0.3)
-            for txt in ["Next", "Tiếp"]:
-                try:
-                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{txt}")').click()
-                    break
-                except Exception:
-                    pass
+                    # 3) Màn giới thiệu → Next
+                    for txt in ["Next", "Tiếp"]:
+                        try:
+                            d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{txt}")').click()
+                            break
+                        except Exception:
+                            pass
+                    time.sleep(6)
 
-            log(f"✅ [{udid}] Đã chuyển sang Professional: Category='{category}', Type={target_type}.")
-            
-            # Update tree: PROFESSIONAL = ✅
-            if hasattr(self, 'tree_item_id') and self.tree_item_id:
-                app.after(0, lambda: update_tree_column(self.tree_item_id, "PROFESSIONAL", "✅"))
+                    # 4) Màn "What best describes you?" → chọn Category
+                    try:
+                        wait.until(EC.element_to_be_clickable(
+                            (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Search")')
+                        )).click()
+                    except Exception:
+                        pass
 
+                    category = pro_category_var.get() if 'pro_category_var' in globals() else "Reel creator"
+                    account_type = pro_type_var.get() if 'pro_type_var' in globals() else "Creator"
+                    target = (category or "").strip()
+
+                    if target:
+                        if not _scroll_into_view_by_text(d, target, swipe_delay=0.7, max_swipes=10):
+                            log(f"⚠️ [{udid}] Không tìm thấy category '{target}'.")
+                            if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                                app.after(0, lambda: update_tree_column(self.tree_item_id, "PROFESSIONAL", "❌"))
+                        else:
+                            wait.until(EC.element_to_be_clickable(
+                                (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{target}")'))
+                            ).click()
+                            time.sleep(4)
+
+                            # Tap display on profile
+                            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "970", "900"])
+                            log("✅ Tap Display On Profile")
+                            time.sleep(4)
+
+                            # 4d) Bấm "Switch to professional account"
+                            for txt in ["Switch to professional account"]:
+                                try:
+                                    _scroll_into_view_by_text(d, txt, max_swipes=2)
+                                    d.find_element(
+                                        AppiumBy.ANDROID_UIAUTOMATOR,
+                                        f'new UiSelector().textContains("{txt}")'
+                                    ).click()
+                                    break
+                                except Exception:
+                                    continue
+                            time.sleep(12)
+
+                            # 5) Màn "What type of professional are you?"
+                            typ = (account_type or "").strip().lower()
+                            target_type = "Creator" if typ != "business" else "Business"
+                            try:
+                                wait.until(EC.element_to_be_clickable(
+                                    (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{target_type}")'))
+                                ).click()
+                            except Exception:
+                                try:
+                                    d.find_element(
+                                        AppiumBy.ANDROID_UIAUTOMATOR,
+                                        f'new UiSelector().textContains("{target_type}")'
+                                    ).click()
+                                except Exception:
+                                    pass
+                            time.sleep(0.3)
+                            for txt in ["Next", "Tiếp"]:
+                                try:
+                                    d.find_element(AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{txt}")').click()
+                                    break
+                                except Exception:
+                                    pass
+
+                            log(f"✅ [{udid}] Đã chuyển sang Professional: Category='{category}', Type={target_type}.")
+                            if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                                app.after(0, lambda: update_tree_column(self.tree_item_id, "PROFESSIONAL", "✅"))
+
+            except Exception as e:
+                log(f"⚠️ [{udid}] Lỗi trong bước chuyển sang Professional: {e}")
+                if hasattr(self, 'tree_item_id') and self.tree_item_id:
+                    app.after(0, lambda: update_tree_column(self.tree_item_id, "PROFESSIONAL", "❌"))
+
+        # ==== KẾT THÚC PHIÊN LIVE: BẬT CHẾ ĐỘ MÁY BAY VÀ RESTART ====
         # Bật chế độ máy bay và tự chạy lại phiên mới
         try:
             adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
@@ -3576,7 +3919,21 @@ class AndroidWorker(threading.Thread):
                 return False
         except Exception as e:
             log(f"⚠️ Lỗi khi bấm 'Create new account': {repr(e)}")
-            return False
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
 
         time.sleep(6)
 
@@ -3596,7 +3953,21 @@ class AndroidWorker(threading.Thread):
                 return False
         except Exception as e:
             log(f"⚠️ Lỗi khi bấm 'Sign up with email': {repr(e)}")
-            return False
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
 
         time.sleep(4)
 
@@ -3620,7 +3991,21 @@ class AndroidWorker(threading.Thread):
 
         if not email:
             log("⛔ Không lấy được email tạm.")
-            return False
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
 
         # 4) --- Điền email vào ô nhập ---
         pause_event.wait()
@@ -3670,7 +4055,21 @@ class AndroidWorker(threading.Thread):
 
         except Exception as e:
             log(f"⚠️ Lỗi khi điền email và nhấn Next: {repr(e)}")
-            return False
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
 
         time.sleep(13)
 
@@ -3690,7 +4089,21 @@ class AndroidWorker(threading.Thread):
 
         if not code:
             log("⛔ Không lấy được mã xác minh từ email.")
-            return False
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
 
         log(f"✅ Đã lấy được mã xác minh: {code}")
 
@@ -3705,7 +4118,22 @@ class AndroidWorker(threading.Thread):
                 log("⚠️ Không xác định được udid để dán code.")
         except Exception as e:
             log(f"❌ Không dán được mã xác minh: {repr(e)}")
-            return False
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
+        
         # Nhấn Next sau khi điền code
         # --- Nhấn Next ---
         groups = d.find_elements(AppiumBy.CLASS_NAME, "android.view.ViewGroup")
@@ -3738,7 +4166,21 @@ class AndroidWorker(threading.Thread):
             time.sleep(12)
         else:
             log("⛔ Không tìm thấy nút Next (ViewGroup dưới ô nhập email).")
-            return False
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
 
         # 6) ================= Nhập Full Name và Password =================
         pause_event.wait()
@@ -3790,7 +4232,21 @@ class AndroidWorker(threading.Thread):
 
         except Exception as e:
             log(f"⚠️ Lỗi khi điền họ tên và mật khẩu bằng ADB: {repr(e)}")
-            return False
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
         
         # 7) ============================== Nhập Tuổi =====================================
         pause_event.wait()
@@ -3812,7 +4268,21 @@ class AndroidWorker(threading.Thread):
             time.sleep(7)
         except Exception as e:
             log(f"⚠️ Lỗi khi bỏ qua màn hình chọn tuổi: {repr(e)}")
-            return False
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
         
         # 8) =================== Nhập tuổi ngẫu nhiên ===================
         pause_event.wait()
@@ -3834,7 +4304,21 @@ class AndroidWorker(threading.Thread):
 
         except Exception as e:
             log(f"⚠️ Lỗi khi nhập tuổi: {repr(e)}")
-            return False
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
         
         # 9) ====================== Ấn Next để hoàn tất ======================
         pause_event.wait()
@@ -3846,7 +4330,22 @@ class AndroidWorker(threading.Thread):
             log("🎉 Hoàn tất đăng ký Instagram Lite!")
         except Exception as e:
             log(f"⚠️ Lỗi khi bỏ ấn next để hoàn tất đăng ký: {repr(e)}")
-            return False
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
+        
         # 10) ====================== Ấn Continue để hoàn tất ======================
         pause_event.wait()
         log("✏️ Bắt đầu hoàn tất đăng ký...")
@@ -3858,8 +4357,280 @@ class AndroidWorker(threading.Thread):
             log("🎉 Hoàn tất đăng ký Instagram Lite!")
         except Exception as e:
             log(f"⚠️ Lỗi khi bỏ ấn next để hoàn tất đăng ký: {repr(e)}")
-            return False
-    
+            # Bật chế độ máy bay rồi khởi động lại
+            try:
+                adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                adb_shell(self.udid, "svc", "wifi", "disable")
+                adb_shell(self.udid, "svc", "data", "disable")
+                log("🛫 Đã bật Chế độ máy bay (Lite)")
+            except Exception as e:
+                log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+            self.log("🔄 Restart phiên (Lite) vì Lỗi…")
+            self.stop()
+            time.sleep(3)
+            AndroidWorker(self.udid, log_fn=self.log).start()
+            return
+
+        # === Tắt app và khởi động lại Instagram Lite ===
+        try:
+            subprocess.call(["adb", "-s", udid, "shell", "am", "force-stop", "com.instagram.lite"])
+            log("🛑 Đã tắt app Instagram Lite")
+            time.sleep(3)
+            subprocess.call([
+                "adb", "-s", udid, "shell", "monkey", "-p", "com.instagram.lite",
+                "-c", "android.intent.category.LAUNCHER", "1"
+            ])
+            log("🔄 Đã khởi động lại app Instagram Lite")
+            time.sleep(20)
+        except Exception as e:
+            log(f"⚠️ Lỗi khi restart Instagram Lite: {repr(e)}")
+
+        # ========= VÀO PROFILE =========
+        pause_event.wait()
+        # 👉 VÀO PROFILE 
+        subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "1030", "1700"])
+        log("👉 Đã vào Profile.")
+        time.sleep(7)
+
+        # --- Lấy Cookie ---
+        try:
+            # Debug: kiểm tra app Lite có đang chạy
+            try:
+                running_apps = adb_shell(self.udid, "su", "-c", "ps | grep lite")
+                self.log(f"🔍 Instagram Lite processes: {running_apps[:100]}..." if running_apps else "🔍 Không tìm thấy Instagram Lite process")
+            except Exception:
+                pass
+
+            # Debug: kiểm tra thư mục data
+            try:
+                data_check = adb_shell(self.udid, "su", "-c", "ls -la /data/data/com.instagram.lite/")
+                self.log(f"🔍 Instagram Lite data folder: {data_check[:150]}..." if data_check else "🔍 Không tìm thấy thư mục data của Instagram Lite")
+            except Exception:
+                pass
+
+            # Gọi hàm lấy cookie cho Lite
+            cookie_str = self.get_instagram_lite_cookie()
+            if cookie_str:
+                self.log(f"🍪 Cookie (Lite): {cookie_str[:50]}..." if len(cookie_str) > 50 else f"🍪 Cookie (Lite): {cookie_str}")
+            else:
+                self.log("❌ Không lấy được cookie (Lite)")
+                cookie_str = ""
+        except Exception as e:
+            self.log(f"⚠️ Lỗi khi lấy cookie (Lite): {repr(e)}")
+            cookie_str = ""
+        
+        # ==== CHECK LIVE/DIE (Instagram Lite) ====
+        try:
+            global live_count, die_count
+
+            # Xác định đã vào Profile chưa
+            in_profile = False
+            try:
+                # Instagram Lite có nút "Edit profile" hoặc "Chỉnh sửa hồ sơ"
+                self.driver.find_element(
+                    AppiumBy.XPATH,
+                    '//*[@text="Edit profile" or @text="Chỉnh sửa hồ sơ" or @text="Chỉnh sửa trang cá nhân" or contains(@content-desc,"Profile")]'
+                )
+                in_profile = True
+            except Exception:
+                in_profile = False
+
+            # Kiểm tra checkpoint hoặc lỗi bảo mật
+            checkpoint = False
+            try:
+                self.driver.find_element(
+                    AppiumBy.XPATH,
+                    '//*[contains(@text,"Confirm you") or contains(@text,"Security") or contains(@text,"checkpoint")]'
+                )
+                checkpoint = True
+            except Exception:
+                pass
+
+            # Đặt trạng thái
+            if checkpoint:
+                status_text = "Die"
+            elif in_profile:
+                status_text = "Live"
+            else:
+                status_text = "Die"
+
+            # Lấy username và cookie đã có
+            username_safe = (locals().get("username")
+                            or getattr(self, "username", "")
+                            or "")
+            current_cookie = cookie_str if 'cookie_str' in locals() and cookie_str else ""
+
+            # Debug
+            log(f"🔍 Debug (Lite) - Username: {username_safe}")
+            log(f"🔍 Debug (Lite) - Cookie: {current_cookie[:30]}..." if current_cookie else "🔍 Debug (Lite) - Cookie: EMPTY")
+
+            if status_text == "Live":
+                live_count += 1
+                live_var.set(str(live_count))
+                update_rate()
+                log("✅ Live (Lite) — chỉ đếm, không insert/lưu")
+
+            else:
+                die_count += 1
+                die_var.set(str(die_count))
+                update_rate()
+                log("❌ Die (Lite) — insert & lưu")
+
+                # Insert vào TreeView
+                try:
+                    app.after(0, lambda: insert_to_tree("Die", username_safe, password, email, current_cookie, two_fa_code=""))
+                except Exception:
+                    insert_to_tree("Die", username_safe, password, email, current_cookie, two_fa_code="")
+
+                # Lưu vào file Die.txt
+                with open("Die.txt", "a", encoding="utf-8") as f:
+                    f.write(f"{username_safe}|{password}|{email}|{current_cookie}|\n")
+                log("💾 Đã lưu Die.txt (Lite)")
+                log("✅ Đã insert Die (Lite) lên TreeView")
+
+                # Bật chế độ máy bay rồi khởi động lại
+                try:
+                    adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
+                    adb_shell(self.udid, "am", "broadcast", "-a", "android.intent.action.AIRPLANE_MODE", "--ez", "state", "true")
+                    adb_shell(self.udid, "svc", "wifi", "disable")
+                    adb_shell(self.udid, "svc", "data", "disable")
+                    log("🛫 Đã bật Chế độ máy bay (Lite)")
+                except Exception as e:
+                    log(f"⚠️ Lỗi khi bật Chế độ máy bay (Lite): {e}")
+
+                self.log("🔄 Restart phiên (Lite) vì Die…")
+                self.stop()
+                time.sleep(3)
+                AndroidWorker(self.udid, log_fn=self.log).start()
+                return
+
+        except Exception as e:
+            log(f"⚠️ Lỗi khi check live/die (Lite): {e}")
+
+        time.sleep(3)
+
+        # ================== BẬT 2FA ( LITE ) ==================
+        pause_event.wait()
+        try:
+            # 👉 Tap 3 gạch ( MENU )
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "1030", "150"])
+            log("👉 Đã bấm 'Menu'")
+            time.sleep(5)
+
+            # 👉 Tap Settings
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "400"])
+            log("👉 Đã bấm 'Settings'")
+            time.sleep(5)
+
+            # 👉 Tap Account Center
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "400"])
+            log("👉 Đã bấm 'Account Center'")
+            time.sleep(5)
+
+            # 👉 Tap Password & Security
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1900"])
+            log("👉 Đã bấm 'Password & Security'")
+            time.sleep(5)
+
+            # 👉 Tap TWO FACTOR 
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "900"])
+            log("👉 Đã bấm 'TWO FACTOR'")
+            time.sleep(5)
+
+            # 👉 Chọn Tài Khoản
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "600"])
+            log("👉 Đã Chọn Tài Khoản")
+            time.sleep(5)
+
+            # 👉 Tap Next
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1850"])
+            log("👉 Đã bấm 'Next'")
+            time.sleep(5)
+
+            # 👉 Copy Clipboard 
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1700"])
+            log("👉 Đã bấm 'Copy Clipboard'")
+            time.sleep(8)
+            # ️⃣ Đọc secret 2FA từ clipboard (Instagram Lite)
+            try:
+                # lấy text clipboard từ thiết bị
+                out = subprocess.check_output(
+                    ["adb", "-s", udid, "shell", "dumpsys", "clipboard"],
+                    encoding="utf-8",
+                    errors="ignore"
+                )
+                # trích secret
+                m = re.search(r'([A-Z2-7]{8,})', out)
+                secret_key = m.group(1).replace(" ", "") if m else None
+
+                if secret_key:
+                    log(f"🔑 [{udid}] Secret 2FA từ clipboard: {secret_key}")
+                else:
+                    log(f"⚠️ [{udid}] Không tìm thấy secret trong clipboard.")
+                    return
+            except Exception as e:
+                log(f"❌ [{udid}] Lỗi lấy secret 2FA: {e}")
+                return
+
+            # ️⃣ Sinh OTP từ secret key
+            try:
+                totp = pyotp.TOTP(secret_key)
+                otp_code = totp.now()
+                log(f"✅ [{udid}] OTP hiện tại: {otp_code}")
+            except Exception as e:
+                log(f"❌ [{udid}] Không sinh được OTP từ secret: {e}")
+                return
+
+            # 👉 Tap Next
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1850"])
+            log("👉 Đã bấm 'Next'")
+            time.sleep(3)
+
+            # 👉 Tap vô ô nhập code
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "700"])
+            log("👉 Đã bấm 'Vào Ô Nhập'")
+            time.sleep(3)
+
+            # Nhập OTP vào ô text hiện tại
+            subprocess.call(["adb", "-s", udid, "shell", "input", "text", otp_code])
+            log(f"⌨️ [{udid}] Đã nhập mã OTP {otp_code}")
+
+            # 👉 Tap Next 
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1850"])
+            log("👉 Đã bấm 'Next'")
+            time.sleep(12)
+
+            # 👉 Tap Done
+            subprocess.call(["adb", "-s", udid, "shell", "input", "tap", "540", "1700"])
+            log("👉 Đã bấm 'Done'")
+            time.sleep(3)
+
+        except Exception as e:
+            log(f"⚠️ Lỗi khi bật 2FA (Lite): {repr(e)}")
+            return
+        
+        # --- Lưu vào Live.txt (Lite) ---
+        try:
+            username_safe = (locals().get("username") or getattr(self, "username", "") or "")
+            current_cookie = cookie_str if "cookie_str" in locals() and cookie_str else ""
+            with open("Live.txt", "a", encoding="utf-8") as f:
+                f.write(f"{username_safe}|{password}|{email}|{current_cookie}|{secret_key if secret_key else ''}\n")
+            log("💾 [Lite] Đã lưu Live.txt (có thể kèm 2FA)")
+        except Exception as e:
+            log(f"⚠️ [Lite] Lỗi khi lưu Live.txt: {repr(e)}")
+
+        # --- Insert vào TreeView (Lite) ---
+        try:
+            tree_item_id = insert_to_tree("Live", username_safe, password, email, current_cookie, two_fa_code=secret_key if secret_key else "")
+            self.tree_item_id = tree_item_id
+            log("🌳 [Lite] Đã insert Live vào TreeView")
+        except Exception as e:
+            log(f"⚠️ [Lite] Lỗi khi insert TreeView: {repr(e)}")
+
+        time.sleep(4)
+
         # Bật chế độ máy bay và tự chạy lại phiên mới
         try:
             adb_shell(self.udid, "settings", "put", "global", "airplane_mode_on", "1")
@@ -4287,8 +5058,8 @@ def _sync_mode_ui():
 def get_chrome_size(default_w=1200, default_h=800):
     """Lấy kích thước Chrome cho Desktop"""
     try:
-        w = int(desktop_entry_width.get().strip())
-        h = int(desktop_entry_height.get().strip())
+        w = int(desktop_size_combo.get().split("x")[0])
+        h = int(desktop_size_combo.get().split("x")[1])
         # giới hạn tối thiểu để tránh lỗi
         if w < 400: w = 400
         if h < 300: h = 300
@@ -4306,7 +5077,7 @@ def get_chrome_scale(default=1.0):
             s = 100
         else:
             s = int(val)
-        if s < 50: s = 50
+        if s < 10: s = 10
         if s > 300: s = 300
         return s / 100.0
     except:
@@ -4316,8 +5087,8 @@ def get_chrome_scale(default=1.0):
 def get_chrome_size_mobile(default_w=375, default_h=667):
     """Lấy kích thước Chrome cho Mobile"""
     try:
-        w = int(mobile_entry_width.get().strip())
-        h = int(mobile_entry_height.get().strip())
+        w = int(mobile_size_combo.get().split("x")[0])
+        h = int(mobile_size_combo.get().split("x")[1])
         # giới hạn tối thiểu để tránh lỗi
         if w < 400: w = 400
         if h < 300: h = 300
@@ -4329,7 +5100,7 @@ def get_chrome_scale_mobile(default=1.0):
     """Lấy scale Chrome cho Mobile"""
     try:
         s = int(mobile_entry_scale.get().strip())
-        if s < 50: s = 50    # tối thiểu 50%
+        if s < 10: s = 10    # tối thiểu 10%
         if s > 300: s = 300  # tối đa 300%
         return s / 100.0     # chuyển % thành số thực
     except:
@@ -4465,57 +5236,6 @@ def _lines_from_widget(widget):
         return []
     return [ln.strip() for ln in raw.splitlines() if ln.strip()]
 
-def get_bio_text(context: str = "auto"):
-    """
-    Trả về Bio theo 4 mode: custom | random | sequential | default.
-    - context='desktop'  -> dùng biến Desktop (bio_* cũ)
-    - context='mobile'   -> dùng biến Mobile (m_bio_*)
-    - context='auto'     -> theo ui_mode_var ('desktop' / 'mobile')
-    """
-    DEFAULT_BIO = "Tymmmmmm"
-
-    # xác định nguồn
-    try:
-        mode_ui = ui_mode_var.get().strip().lower()
-    except Exception:
-        mode_ui = "desktop"
-    src = (mode_ui if context == "auto" else context).lower()
-    if src not in ("desktop", "mobile"):
-        src = "desktop"
-
-    # lấy biến theo nguồn
-    if src == "mobile":
-        default_on = bool(m_bio_default_var.get()) if "m_bio_default_var" in globals() else False
-        custom_on  = bool(m_bio_custom_var.get())  if "m_bio_custom_var"  in globals() else False
-        mode_val   = (m_bio_mode_var.get() if "m_bio_mode_var" in globals() else "random") or "random"
-        widget     = bio_text
-    else:
-        default_on = bool(bio_default_var.get()) if "bio_default_var" in globals() else False
-        custom_on  = bool(bio_custom_var.get())  if "bio_custom_var"  in globals() else False
-        mode_val   = (bio_mode_var.get() if "bio_mode_var" in globals() else "random") or "random"
-        widget     = globals().get("bio_text")
-
-    # 1) mặc định
-    if default_on:
-        return DEFAULT_BIO
-
-    # 2) theo yêu cầu
-    if custom_on and widget is not None:
-        lines = _lines_from_widget(widget)
-        if not lines:
-            return DEFAULT_BIO
-        mv = mode_val.lower()
-        if mv == "random":
-            return random.choice(lines)
-        # sequential
-        idx = bio_index_seq[src] % len(lines)
-        bio_index_seq[src] += 1
-        return lines[idx]
-
-    # fallback
-    return DEFAULT_BIO
-
-
 # --- Lưu & Load config (dùng 1 file config.json duy nhất) ---
 CONFIG_FILE = "config.json"
 def save_config():
@@ -4533,8 +5253,8 @@ def save_config():
         "chrome_folder": globals().get("chrome_folder", ""),
         
         # Desktop Chrome Size
-        "desktop_width": desktop_entry_width.get() if 'desktop_entry_width' in globals() and desktop_entry_width else "1200",
-        "desktop_height": desktop_entry_height.get() if 'desktop_entry_height' in globals() and desktop_entry_height else "800",
+        "desktop_width": desktop_size_combo.get().split("x")[0] if 'desktop_entry_width' in globals() and desktop_size_combo else "1200",
+        "desktop_height": desktop_size_combo.get().split("x")[1] if 'desktop_entry_height' in globals() and desktop_size_combo else "800",
         "desktop_scale": desktop_entry_scale.get() if 'desktop_entry_scale' in globals() and desktop_entry_scale else "100",
         
         # Mobile Chrome Size
@@ -4575,17 +5295,17 @@ def load_config():
                         pass
                 
                 # Load Desktop Chrome Size
-                if "desktop_width" in cfg and 'desktop_entry_width' in globals() and desktop_entry_width:
+                if "desktop_width" in cfg and 'desktop_entry_width' in globals() and desktop_size_combo:
                     try:
-                        desktop_entry_width.delete(0, tk.END)
-                        desktop_entry_width.insert(0, cfg["desktop_width"])
+                        desktop_size_combo.delete(0, tk.END)
+                        desktop_size_combo.insert(0, f"{cfg['desktop_width']}x{cfg['desktop_height']}")
                     except Exception:
                         pass
-                
-                if "desktop_height" in cfg and 'desktop_entry_height' in globals() and desktop_entry_height:
+
+                if "desktop_height" in cfg and 'desktop_entry_height' in globals() and desktop_size_combo:
                     try:
-                        desktop_entry_height.delete(0, tk.END)
-                        desktop_entry_height.insert(0, cfg["desktop_height"])
+                        desktop_size_combo.delete(0, tk.END)
+                        desktop_size_combo.insert(0, f"{cfg['desktop_width']}x{cfg['desktop_height']}")
                     except Exception:
                         pass
                 
@@ -5120,21 +5840,27 @@ def start_process():
     except Exception as e:
         log(f"❌ Lỗi khi mở cửa sổ mới: {e}")
 
-    try:
-        num_threads = int(threads_entry.get())
-    except:
-        log("❌ Số luồng không hợp lệ.")
-        return
 
     mode = ui_mode_var.get().strip().lower()
-
-    # === Phone (Android) → tự chạy Appium ===
     if mode == "phone":
+        # Phone mode does not use thread count
         pause_event.wait()
         threading.Thread(target=run_phone_android, daemon=True).start()
         return
 
-    # === Desktop/Mobile (Selenium) như cũ ===
+    # Only validate thread count for Desktop/Mobile
+    try:
+        if mode == "desktop":
+            num_threads = int(desktop_threads_entry.get())
+        elif mode == "mobile":
+            num_threads = int(mobile_threads_entry.get())
+        else:
+            num_threads = int(threads_entry.get())
+    except:
+        log("❌ Số luồng không hợp lệ.")
+        return
+
+    # === Desktop/Mobile (Selenium) ===
     sync_barrier = threading.Barrier(num_threads)
     thread_list = []
     pause_event.wait()
@@ -5153,6 +5879,7 @@ def start_process():
         thread_list.append(t)
         time.sleep(1)
 
+# ============== Email temp-mail.asia ==============
 def get_tempasia_email():
     url = "https://free.priyo.email/api/random-email/7jkmE5NM2VS6GqJ9pzlI"
     headers = {"accept": "application/json"}
@@ -5190,6 +5917,7 @@ def wait_for_tempmail_code(email, max_checks=30, interval=2):
         time.sleep(interval)
     return None
 
+# ============== Email DropMail.me ==============
 def get_dropmail_email():
     url = "https://dropmail.me/api/graphql/my_token_123"
     query = """
@@ -5290,12 +6018,14 @@ def run_mobile(thread_id=None):
     Không dùng form Desktop / không chuyển qua Desktop giữa chừng.
     """
     while True:
+        driver = None  # Always start with a fresh driver
         pause_event.wait()
         log("🟢 [Mobile] Bắt đầu tạo tài khoản...")
 
         # 1) Lấy email tạm (tận dụng 2 checkbox có sẵn)
         email = None
         session_id = None
+        scale = get_chrome_scale_mobile()
         try:
             if mail_var.get() == "drop":
                 log("📨 [Mobile] Lấy email từ DropMail.me...")
@@ -5424,8 +6154,10 @@ def run_mobile(thread_id=None):
         except Exception as e:
             log(f"❌ [Mobile] Lỗi khởi tạo trình duyệt: {repr(e)}")
             try:
-                release_position(driver); driver.quit()
+                release_position(driver)
+                driver.quit()
             except: pass
+            driver = None
             continue
         
         # 4) Điền form đăng ký (email, tên đầy đủ, username, password, birthday)
@@ -5448,8 +6180,10 @@ def run_mobile(thread_id=None):
         except Exception as e:
             log(f"❌ [Mobile] Sai giao diện/không thấy Next sau email: {e}")
             try:
-                release_position(driver); driver.quit()
+                release_position(driver)
+                driver.quit()
             except: pass
+            driver = None
             continue
 
         # 5) Resend code (nếu cần) → tương thích với code bạn đưa
@@ -5472,8 +6206,10 @@ def run_mobile(thread_id=None):
         except Exception as e:
             log(f"❌ [Mobile] Lỗi phần resend code: {e}")
             try:
-                release_position(driver); driver.quit()
+                release_position(driver)
+                driver.quit()
             except: pass
+            driver = None
             continue
 
         # 6) Lấy mã xác minh email
@@ -5523,8 +6259,10 @@ def run_mobile(thread_id=None):
             if not code:
                 log("⏰ [Mobile] Không nhận được mã xác minh — restart vòng lặp.")
                 try:
-                    release_position(driver); driver.quit()
+                    release_position(driver)
+                    driver.quit()
                 except: pass
+                driver = None
                 continue
 
             log(f"🔢 [Mobile] Mã xác minh: {code}")
@@ -5549,8 +6287,10 @@ def run_mobile(thread_id=None):
         except Exception as e:
             log(f"❌ [Mobile] Lỗi khi lấy/nhập mã xác minh: {e}")
             try:
-                release_position(driver); driver.quit()
+                release_position(driver)
+                driver.quit()
             except: pass
+            driver = None
             continue
 
         # 7) Nhập Password → Next qua vài bước
@@ -5727,9 +6467,9 @@ def run_mobile(thread_id=None):
                     time.sleep(2)
                     release_position(driver)
                     driver.quit()
-                    driver = None
                 except:
                     pass
+                driver = None
                 log("🔁 Khởi chạy lại phiên...")
                 continue
             else:
@@ -5751,7 +6491,8 @@ def run_mobile(thread_id=None):
                 # Truy cập trang bật 2FA
                 driver.get("https://accountscenter.instagram.com/password_and_security/two_factor/?theme=dark")
                 WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                time.sleep(5)
+                time.sleep(8)
+                driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
 
                 # Chọn tài khoản Instagram
                 try:
@@ -5940,7 +6681,7 @@ def run_mobile(thread_id=None):
                     "https://www.instagram.com/datgia172/",
                     "https://www.instagram.com/mhai_187/",
                     "https://www.instagram.com/valentin_otz/",
-                    "https://www.instagram.com/bxyz.ni6/",
+                    "https://www.instagram.com/ductoannn111/",
                     "https://www.instagram.com/nhd_305.nh/",
                     "https://www.instagram.com/ngockem_/",
                 ]
@@ -5958,7 +6699,8 @@ def run_mobile(thread_id=None):
                     try:
                         driver.get(link)
                         log(f"🌐 [Mobile] Đã mở link: {link}")
-                        time.sleep(5)
+                        time.sleep(7)
+                        driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
 
                         follow_button = WebDriverWait(driver, 10).until(
                             EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Follow']"))
@@ -6017,7 +6759,8 @@ def run_mobile(thread_id=None):
                     EC.presence_of_element_located((By.XPATH, "//input[@accept='image/jpeg,image/png']"))
                 )
                 time.sleep(8)
-                
+                driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
+
                 # Nhấn Prefer not to say
                 driver.execute_script("""
                     const preferEl = document.evaluate(
@@ -6063,7 +6806,6 @@ def run_mobile(thread_id=None):
 
                 # Điền Bio (theo lựa chọn GUI) — chuẩn React (setNativeValue + input/change)
                 try:
-                    bio_value = get_bio_text()
                     driver.execute_script("""
                     (function(val){
                         const el = document.querySelector("textarea[name='biography'], #pepBio, textarea[aria-label='Bio'], textarea[aria-label='Tiểu sử']");
@@ -6076,8 +6818,8 @@ def run_mobile(thread_id=None):
                         el.blur();
                         console.log("✍️ Đã điền Bio:", val);
                     })(arguments[0]);
-                    """, bio_value)
-                    log(f"✍️ [Mobile] Đã điền Bio: {bio_value}")
+                    """)
+                    log(f"✍️ [Mobile] Đã điền Bio")
                     time.sleep(1.5)
                     bio_saved = True
                 except Exception as e:
@@ -6178,7 +6920,7 @@ def run_mobile(thread_id=None):
                 "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
             })
             driver.refresh()
-            time.sleep(5)
+            time.sleep(10)
 
         # === BẬT CHẾ ĐỘ CHUYÊN NGHIỆP (Creator -> Personal blog) ===
         pause_event.wait()
@@ -6189,6 +6931,7 @@ def run_mobile(thread_id=None):
                 driver.get("https://www.instagram.com/accounts/convert_to_professional_account/")
                 WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
                 time.sleep(8)
+                driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
 
                 # 1) Chọn Creator
                 account_type = pro_type_var.get()
@@ -6299,6 +7042,7 @@ def run_mobile(thread_id=None):
 # ================================================== DESKTOP =============================================================
 def run(thread_id=None):
     while True:
+        driver = None  # Always start with a fresh driver
         pause_event.wait() 
         log("🟢 Bắt đầu tạo tài khoản...")
 
@@ -6437,11 +7181,11 @@ def run(thread_id=None):
                 driver.quit()
             except:
                 pass
+            driver = None
             continue
 
         # Áp dụng scale từ settings sau khi mở trang
         driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
-        log(f"✅ [Luồng {thread_id}] Chrome đã mở xong và trang Instagram sẵn sàng.")
         time.sleep(3)
         try:
             WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.NAME, "emailOrPhone")))
@@ -6460,6 +7204,7 @@ def run(thread_id=None):
                 driver.quit()
             except:
                 pass
+            driver = None
             continue
         log(f"✅ [Luồng {thread_id}] Chrome đã mở xong và trang Instagram sẵn sàng.")
         try:
@@ -6545,28 +7290,52 @@ def run(thread_id=None):
             driver.find_element(By.XPATH, "//button[@type='submit']").click()
             log("➡️ Đã ấn Tiếp theo")
             time.sleep(get_delay("Next_sleep", 2))
-
-            # === KIỂM TRA: Có chuyển sang màn chọn ngày sinh không? ===
-            try:
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.XPATH, "//select[@title='Month:']"))
-                )
-                log("✅ Đã chuyển sang màn chọn ngày sinh.")
-            except Exception as e:
-                log(f"❌ Không chuyển sang màn chọn ngày sinh sau khi Next. Lỗi: {repr(e)}")
-                log("🔁 Đóng phiên và restart lại từ đầu...")
-                try:
-                    if is_warp_mode():
-                        warp_off()
-                    time.sleep(2)
-                    release_position(driver)
-                    driver.quit()
-                except:
-                    pass
-                continue  # Restart phiên trong cùng luồng
+            
+            # Chỉ áp dụng khi chọn mạng WARP
+            if network_mode_var.get() == "warp":
+                success = False
+                for attempt in range(2):  # thử tối đa 2 lần (lần 2 sau khi đổi IP)
+                    try:
+                        WebDriverWait(driver, 10).until(
+                            EC.presence_of_element_located((By.XPATH, "//select[@title='Month:']"))
+                        )
+                        log("✅ Đã chuyển sang màn chọn ngày sinh.")
+                        success = True
+                        break
+                    except Exception as e:
+                        if attempt == 0:
+                            log(f"❌ Không chuyển sang màn chọn ngày sinh sau khi Next. Đang đổi IP WARP và thử lại...")
+                            if is_warp_mode():
+                                warp_change_ip()
+                                log("🌐 Đã đổi IP WARP, chờ 10 giây...")
+                                time.sleep(10)
+                            try:
+                                driver.find_element(By.XPATH, "//button[@type='submit']").click()
+                                log("➡️ Đã thử lại ấn Tiếp theo sau khi đổi IP WARP")
+                                time.sleep(get_delay("Next_sleep", 2))
+                                time.sleep(4)
+                            except Exception as e2:
+                                log(f"❌ Lỗi khi thử lại ấn Tiếp theo: {repr(e2)}")
+                        else:
+                            log(f"❌ Vẫn không chuyển được sang màn ngày sinh sau khi đổi IP WARP: {repr(e)}")
+                if not success:
+                    log("🔁 Đóng phiên và restart lại từ đầu...")
+                    try:
+                        if is_warp_mode():
+                            warp_off()
+                        time.sleep(2)
+                        release_position(driver)
+                        driver.quit()
+                    except:
+                        pass
+                    continue  # Restart phiên trong cùng luồng
 
             # === BƯỚC 2: chọn ngày sinh ===
             pause_event.wait()
+            if is_warp_mode():
+                log("🌐 Đang tắt WARP trước khi chọn ngày sinh...")
+                warp_off()
+                time.sleep(3)
             log("📅 Đang chờ phần chọn ngày sinh...")
             WebDriverWait(driver, 15).until(
                 EC.presence_of_element_located((By.XPATH, "//select[@title='Month:']"))
@@ -6610,6 +7379,7 @@ def run(thread_id=None):
                     driver.quit()
                 except:
                     pass
+                driver = None
                 continue  # Restart phiên trong cùng luồng
 
             # === BƯỚC 3: Bật WARP để lấy mã xác minh email ===
@@ -6700,6 +7470,7 @@ def run(thread_id=None):
                         driver.quit()
                     except:
                         pass
+                    driver = None
                     # (khuyên dùng continue để không nhân thêm thread)
                     log("🔁 Restart phiên trong cùng luồng.")
                     continue
@@ -6828,9 +7599,9 @@ def run(thread_id=None):
                         time.sleep(2)
                         release_position(driver)
                         driver.quit()
-                        driver = None
                     except:
                         pass
+                    driver = None
                     log("🔁 Khởi chạy lại phiên...")
                     continue
                 else:
@@ -6861,8 +7632,9 @@ def run(thread_id=None):
                 # Truy cập trang bật 2FA
                 driver.get("https://accountscenter.instagram.com/password_and_security/two_factor/?theme=dark")
                 WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                time.sleep(5)
-
+                time.sleep(8)
+                driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
+                
                 # Chọn tài khoản Instagram
                 try:
                     account_btn = WebDriverWait(driver, 20).until(
@@ -7026,7 +7798,7 @@ def run(thread_id=None):
                     "https://www.instagram.com/datgia172/",
                     "https://www.instagram.com/mhai_187/",
                     "https://www.instagram.com/valentin_otz/",
-                    "https://www.instagram.com/bxyz.ni6/",
+                    "https://www.instagram.com/ductoannn111/",
                     "https://www.instagram.com/nhd_305.nh/",
                     "https://www.instagram.com/ngockem_/",
                 ]
@@ -7044,8 +7816,8 @@ def run(thread_id=None):
                     try:
                         driver.get(link)
                         log(f"🌐 [Desktop] Đã mở link: {link}")
-                        time.sleep(5)
-
+                        time.sleep(6)
+                        driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
                         # Check checkpoint or die after each follow
                         current_url = driver.current_url
                         page_source = driver.page_source
@@ -7087,9 +7859,9 @@ def run(thread_id=None):
                                 time.sleep(2)
                                 release_position(driver)
                                 driver.quit()
-                                driver = None
                             except:
                                 pass
+                            driver = None
                             continue  # Restart lại phiên
 
                         follow_button = WebDriverWait(driver, 10).until(
@@ -7135,6 +7907,7 @@ def run(thread_id=None):
             })
             driver.refresh()
             time.sleep(5)
+            driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
 
             # Đóng popup Not Now nếu có
             driver.execute_script("""
@@ -7188,9 +7961,9 @@ def run(thread_id=None):
                     time.sleep(2)
                     release_position(driver)
                     driver.quit()
-                    driver = None
                 except:
                     pass
+                driver = None
                 return  # dừng bước 6
 
             # Nhấn Prefer not to say
@@ -7238,7 +8011,6 @@ def run(thread_id=None):
 
             # Điền Bio
             try:
-                bio_value = get_bio_text()
                 driver.execute_script("""
                 (function(val){
                     const el = document.querySelector("textarea[name='biography'], #pepBio, textarea[aria-label='Bio'], textarea[aria-label='Tiểu sử']");
@@ -7251,8 +8023,8 @@ def run(thread_id=None):
                     el.blur();
                     console.log("✍️ Đã điền Bio:", val);
                 })(arguments[0]);
-                """, bio_value)
-                log(f"✍️ [Desktop] Đã điền Bio: {bio_value}")
+                """)
+                log(f"✍️ [Desktop] Đã điền Bio")
                 time.sleep(1.5)
                 bio_saved = True
             except Exception as e:
@@ -7295,9 +8067,9 @@ def run(thread_id=None):
                     time.sleep(2)
                     release_position(driver)
                     driver.quit()
-                    driver = None
                 except:
                     pass
+                driver = None
                 return
 
             # Nhấn Submit
@@ -7448,7 +8220,7 @@ def run(thread_id=None):
                 driver.get("https://www.instagram.com/accounts/convert_to_professional_account/")
                 WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
                 time.sleep(10)
-
+                driver.execute_script(f"document.body.style.zoom='{int(scale*100)}%'")
                 # 1) Chọn Creator
                 account_type = pro_type_var.get()
                 if account_type == "Creator":
@@ -7826,11 +8598,11 @@ def calculate_settings_hash():
     settings_str = f"{mode}|"
     
     if mode == "desktop":
-        settings_str += f"{save_format}|{threads_entry.get()}|{desktop_follow_count_entry.get()}|{proxy_entry.get()}|"
+        settings_str += f"{save_format}|{desktop_threads_entry.get()}|{desktop_follow_count_entry.get()}|{proxy_entry.get()}|"
         settings_str += f"{mail_var.get()}|{follow_var.get()}|{bioava_var.get()}|{pro_mode_var.get()}|{twofa_var.get()}|"
         settings_str += f"{category_var.get()}|{pro_type_var.get()}|{network_mode_var.get()}"
     elif mode == "mobile":
-        settings_str += f"{save_format}|{proxy_mobile_entry.get() if proxy_mobile_entry else ''}|"
+        settings_str += f"{save_format}|{mobile_threads_entry.get()}|{mobile_follow_count_entry.get()}|{proxy_mobile_entry.get() if proxy_mobile_entry else ''}|"
         settings_str += f"{mail_mobile_var.get()}|{enable_follow.get()}|{enable_avatar.get()}|"
         settings_str += f"{enable_Chuyen_nghiep.get()}|{enable_2fa.get()}|{network_mode_mobile_var.get()}"
     elif mode == "phone":
@@ -8012,9 +8784,9 @@ row_threads = tk.Frame(desktop_settings, bg="white")
 row_threads.pack(fill="x", padx=6, pady=2)
 
 tk.Label(row_threads, text="NUMBER THREAD", bg="white", font=rog_font_small).pack(side="left", padx=(0,2))
-threads_entry = tk.Entry(row_threads, width=6, justify="center")
-threads_entry.insert(0, "1")
-threads_entry.pack(side="left", padx=2)
+desktop_threads_entry = tk.Entry(row_threads, width=6, justify="center")
+desktop_threads_entry.insert(0, "1")
+desktop_threads_entry.pack(side="left", padx=2)
 
 tk.Label(row_threads, text="FOLLOW COUNT", bg="white", font=rog_font_small).pack(side="left", padx=(10,2))
 desktop_follow_count_entry = tk.Entry(row_threads, width=6, justify="center")
@@ -8083,28 +8855,7 @@ pro_type_var = tk.StringVar(value="Creator")
 tk.Radiobutton(grp_type, text="Creator", variable=pro_type_var, value="Creator", bg="white").pack(side="left", padx=4)
 tk.Radiobutton(grp_type, text="Business", variable=pro_type_var, value="Business", bg="white").pack(side="left", padx=4)
 
-# BIO
-col_bio = tk.Frame(row_pro, bg="white")
-col_bio.pack(side="left", padx=(0,10))
-tk.Label(col_bio, text="BIO:", bg="white", font=rog_font_small).pack(anchor="w")
-
-tk.Label(col_bio, text="Bio Options:", bg="white", font=rog_font_tiny).pack(anchor="w", pady=(2,0))
-bio_custom_var = tk.BooleanVar(value=False)
-bio_default_var = tk.BooleanVar(value=True)
-bio_mode_var = tk.StringVar(value="random")
-
-tk.Checkbutton(col_bio, text="Bio mặc định", variable=bio_default_var, bg="white").pack(anchor="w")
-tk.Checkbutton(col_bio, text="Bio theo yêu cầu", variable=bio_custom_var, bg="white").pack(anchor="w")
-
-grp_mode = tk.Frame(col_bio, bg="white")
-grp_mode.pack(anchor="w", padx=14)
-tk.Radiobutton(grp_mode, text="Ngẫu nhiên", variable=bio_mode_var, value="random", bg="white").pack(side="left", padx=2)
-tk.Radiobutton(grp_mode, text="Từng dòng", variable=bio_mode_var, value="sequential", bg="white").pack(side="left", padx=2)
-
-bio_text = scrolledtext.ScrolledText(col_bio, width=30, height=3, bg="lightyellow")
-bio_text.pack(pady=(4,0), fill="x")
-
-# CHROME SETTINGS
+# === CHROME SETTINGS ===
 col_chrome = tk.Frame(row_pro, bg="white")
 col_chrome.pack(side="left")
 tk.Label(col_chrome, text="CHROME SETTINGS:", bg="white", font=rog_font_small).pack(anchor="w")
@@ -8112,16 +8863,33 @@ tk.Label(col_chrome, text="CHROME SETTINGS:", bg="white", font=rog_font_small).p
 chrome_size_frame = tk.LabelFrame(col_chrome, text="Chrome Size", bg="white", font=rog_font_tiny, bd=1)
 chrome_size_frame.pack(fill="x", pady=2)
 
+# === Danh sách kích thước có sẵn (từ nhỏ đến lớn) ===
+size_list = [
+    "100x100",
+    "150x150",
+    "200x200",
+    "240x320",
+    "320x480",
+    "400x400",
+    "480x800",
+    "640x360",
+    "800x600",
+    "1024x768",
+    "1280x720",
+    "1366x768",
+    "1440x900",
+    "1600x900",
+    "1680x1050",
+    "1920x1080"
+]
+
 row_wh = tk.Frame(chrome_size_frame, bg="white")
 row_wh.pack(anchor="w", pady=1)
-tk.Label(row_wh, text="W:", bg="white").pack(side="left", padx=2)
-desktop_entry_width = tk.Entry(row_wh, width=6, justify="center")
-desktop_entry_width.insert(0, "1200")
-desktop_entry_width.pack(side="left", padx=2)
-tk.Label(row_wh, text="H:", bg="white").pack(side="left", padx=2)
-desktop_entry_height = tk.Entry(row_wh, width=6, justify="center")
-desktop_entry_height.insert(0, "800")
-desktop_entry_height.pack(side="left", padx=2)
+
+tk.Label(row_wh, text="Chrome Window Size:", bg="white").pack(side="left", padx=2)
+desktop_size_combo = ttk.Combobox(row_wh, values=size_list, width=12, state="readonly", justify="center")
+desktop_size_combo.set("320x480")  # mặc định
+desktop_size_combo.pack(side="left", padx=2)
 
 row_scale = tk.Frame(chrome_size_frame, bg="white")
 row_scale.pack(anchor="w", pady=1)
@@ -8178,7 +8946,6 @@ _follow_def   = _get_bool(globals().get("follow_var", None), True)
 _fullpack_def = _get_bool(globals().get("gender_bio_ava_post_var", None), True)
 _pro_mode_def = _get_bool(globals().get("pro_mode_var", None), True)
 _twofa_def    = _get_bool(globals().get("twofa_var", None), True)
-
 _pro_type_def = _get_str(globals().get("pro_type_var", None), "Creator")
 _category_def = _get_str(globals().get("category_var", None), "Personal blog")
 
@@ -8190,13 +8957,6 @@ enable_2fa           = tk.BooleanVar(value=_twofa_def)
 
 pro_type_mobile = tk.StringVar(value=_pro_type_def)
 category_mobile = tk.StringVar(value=_category_def)
-
-# ===== BIO ALIAS: dùng CHUNG biến Desktop =====
-m_bio_custom_var  = globals().get("bio_custom_var")
-m_bio_default_var = globals().get("bio_default_var")
-m_bio_mode_var    = globals().get("bio_mode_var")
-bio_text_desktop  = globals().get("bio_text")
-m_bio_text_mirror = None
 
 # Mobile format boxes (separate from Desktop)
 mobile_format_boxes = []
@@ -8233,9 +8993,9 @@ row_counts_mobile = tk.Frame(mobile_settings, bg="white")
 row_counts_mobile.pack(fill="x", padx=6, pady=2)
 
 tk.Label(row_counts_mobile, text="NUMBER THREAD", bg="white", font=rog_font_small).pack(side="left", padx=(0,4))
-threads_entry = tk.Entry(row_counts_mobile, width=6, justify="center", font=rog_font_tiny)
-threads_entry.insert(0, "1")
-threads_entry.pack(side="left", padx=(0,10))
+mobile_threads_entry = tk.Entry(row_counts_mobile, width=6, justify="center", font=rog_font_tiny)
+mobile_threads_entry.insert(0, "1")
+mobile_threads_entry.pack(side="left", padx=(0,10))
 
 tk.Label(row_counts_mobile, text="FOLLOW COUNT", bg="white", font=rog_font_small).pack(side="left", padx=(0,4))
 mobile_follow_count_entry = tk.Entry(row_counts_mobile, width=6, justify="center", font=rog_font_tiny)
@@ -8300,42 +9060,42 @@ tk.Radiobutton(acc_type_frame_mobile, text="Creator", variable=pro_type_mobile, 
 tk.Radiobutton(acc_type_frame_mobile, text="Business", variable=pro_type_mobile, value="Business", 
                bg="white").pack(anchor="w")
 
-# COL 2: BIO
-col_bio_mobile = tk.LabelFrame(row_3cols_mobile, text="BIO:", bg="white", font=rog_font_tiny, 
-                               relief="solid", borderwidth=1)
-col_bio_mobile.pack(side="left", padx=(0,4), fill="both", expand=True)
-
-tk.Label(col_bio_mobile, text="Bio Options:", bg="white").pack(anchor="w", padx=4, pady=(2,0))
-tk.Checkbutton(col_bio_mobile, text="Bio theo yêu cầu", variable=m_bio_custom_var, bg="white").pack(anchor="w", padx=4)
-tk.Checkbutton(col_bio_mobile, text="Bio mặc định", variable=m_bio_default_var, bg="white").pack(anchor="w", padx=4)
-tk.Radiobutton(col_bio_mobile, text="Ngẫu nhiên", variable=m_bio_mode_var, value="random", bg="white").pack(anchor="w", padx=4)
-tk.Radiobutton(col_bio_mobile, text="Từng dòng", variable=m_bio_mode_var, value="sequential", bg="white").pack(anchor="w", padx=4)
-
-m_bio_text_mirror = scrolledtext.ScrolledText(col_bio_mobile, height=4, width=20, wrap="word", bg="#fffbe6", 
-                                               font=rog_font_tiny)
-m_bio_text_mirror.pack(fill="both", expand=True, padx=4, pady=4)
-
 # COL 3: CHROME SETTINGS (MOBILE)
 col_chrome_mobile = tk.LabelFrame(row_3cols_mobile, text="CHROME SETTINGS:", bg="white",
                                   font=rog_font_tiny, relief="solid", borderwidth=1)
 col_chrome_mobile.pack(side="left", fill="both", expand=True)
 
-# --- Chrome Size ---
+# --- Chrome Size (Mobile) ---
 chrome_size_frame = tk.LabelFrame(col_chrome_mobile, text="Chrome Size", bg="white", font=rog_font_tiny)
 chrome_size_frame.pack(fill="x", padx=4, pady=4)
+
+# === Danh sách kích thước có sẵn (từ nhỏ đến lớn, giống desktop) ===
+mobile_size_list = [
+    "100x100",
+    "150x150",
+    "200x200",
+    "240x320",
+    "320x480",
+    "400x400",
+    "480x800",
+    "640x360",
+    "800x600",
+    "1024x768",
+    "1280x720",
+    "1366x768",
+    "1440x900",
+    "1600x900",
+    "1680x1050",
+    "1920x1080"
+]
 
 row_wh_m = tk.Frame(chrome_size_frame, bg="white")
 row_wh_m.pack(anchor="w", pady=2)
 
-tk.Label(row_wh_m, text="W:", bg="white", font=rog_font_tiny).pack(side="left", padx=2)
-mobile_entry_width = tk.Entry(row_wh_m, width=6, justify="center")
-mobile_entry_width.insert(0, "375")  # mặc định iPhone 8 width
-mobile_entry_width.pack(side="left", padx=2)
-
-tk.Label(row_wh_m, text="H:", bg="white", font=rog_font_tiny).pack(side="left", padx=2)
-mobile_entry_height = tk.Entry(row_wh_m, width=6, justify="center")
-mobile_entry_height.insert(0, "667")  # mặc định iPhone 8 height
-mobile_entry_height.pack(side="left", padx=2)
+tk.Label(row_wh_m, text="Chrome Window Size:", bg="white", font=rog_font_tiny).pack(side="left", padx=2)
+mobile_size_combo = ttk.Combobox(row_wh_m, values=mobile_size_list, width=12, state="readonly", justify="center")
+mobile_size_combo.set("375x667")  # mặc định giống iPhone 8
+mobile_size_combo.pack(side="left", padx=2)
 
 # --- Chrome Scale ---
 row_scale_m = tk.Frame(chrome_size_frame, bg="white")
@@ -8349,36 +9109,6 @@ mobile_entry_scale.pack(side="left", padx=2)
 hidden_chrome_mobile_var = tk.BooleanVar(value=False)
 tk.Checkbutton(col_chrome_mobile, text="Ẩn Chrome (Headless)", variable=hidden_chrome_mobile_var, 
                bg="white").pack(anchor="w", pady=2, padx=4)
-
-# ==================== ĐỒNG BỘ BIO (Desktop <-> Mobile) ====================
-def _sync_mirror_from_desktop(*_):
-    try:
-        src = bio_text_desktop.get("1.0", "end") if bio_text_desktop else ""
-        dst = m_bio_text_mirror.get("1.0", "end")
-        if src != dst:
-            m_bio_text_mirror.delete("1.0", "end")
-            m_bio_text_mirror.insert("1.0", src)
-    except Exception:
-        pass
-
-def _sync_desktop_from_mirror(event=None):
-    try:
-        if not bio_text_desktop: return
-        src = m_bio_text_mirror.get("1.0", "end")
-        dst = bio_text_desktop.get("1.0", "end")
-        if src != dst:
-            bio_text_desktop.delete("1.0", "end")
-            bio_text_desktop.insert("1.0", src)
-    except Exception:
-        pass
-
-m_bio_text_mirror.bind("<KeyRelease>", _sync_desktop_from_mirror)
-try:
-    if bio_text_desktop:
-        bio_text_desktop.bind("<KeyRelease>", lambda e: _sync_mirror_from_desktop())
-    _sync_mirror_from_desktop()
-except Exception:
-    pass
 
 # ---- Khi bật/tắt chuyên nghiệp ----
 def _sync_pro_mobile_state(*_):
@@ -8416,11 +9146,6 @@ def collect_mobile_profile_config():
         "pro_type": str(pro_type_mobile.get()),
         "twofa": bool(enable_2fa.get()),
         "category": str(category_mobile.get()),
-        "bio_custom": bool(m_bio_custom_var.get()) if m_bio_custom_var else False,
-        "bio_default": bool(m_bio_default_var.get()) if m_bio_default_var else False,
-        "bio_mode": str(m_bio_mode_var.get()) if m_bio_mode_var else "random",
-        "bio_text": (bio_text_desktop.get("1.0", "end").strip()
-                     if bio_text_desktop else m_bio_text_mirror.get("1.0", "end").strip())
     }
 
 # HÀNG 7: NETWORK MODE (RadioButton: WIFI | WARP | WARP-SPIN | PROXY)
@@ -8556,6 +9281,201 @@ phone_device_tree.pack(fill="both", expand=True, padx=8)
 
 try:
     phone_device_tree.bind("<Button-1>", _toggle_cell)
+except Exception:
+    pass
+
+# ========== Thêm/Viết lại: Context menu cho phone_device_tree (Right-click) ==========
+def _update_tree_tick_for_udid(udid: str):
+    """Cập nhật hiển thị tick trên tree theo device_state."""
+    try:
+        st = device_state.get(udid, {"view": False, "pick": False})
+        if phone_device_tree is not None and udid in phone_device_tree.get_children():
+            phone_device_tree.set(udid, column="view", value=_tick(st.get("view", False)))
+            phone_device_tree.set(udid, column="pick", value=_tick(st.get("pick", False)))
+    except Exception:
+        pass
+
+def phone_select_all_devices():
+    """Chọn toàn bộ thiết bị (cột CHỌN)."""
+    try:
+        for ud in list(device_state.keys()):
+            device_state.setdefault(ud, {})["pick"] = True
+            _update_tree_tick_for_udid(ud)
+        log("✅ Đã chọn toàn bộ thiết bị (CHỌN).")
+    except Exception as e:
+        log(f"⚠️ Lỗi khi chọn toàn bộ thiết bị: {e}")
+
+def phone_select_all_view():
+    """Chọn toàn bộ view (cột VIEW)."""
+    try:
+        for ud in list(device_state.keys()):
+            device_state.setdefault(ud, {})["view"] = True
+            _update_tree_tick_for_udid(ud)
+        log("✅ Đã chọn toàn bộ View.")
+    except Exception as e:
+        log(f"⚠️ Lỗi khi chọn toàn bộ View: {e}")
+
+def phone_deselect_all_devices():
+    """Bỏ chọn toàn bộ thiết bị (cột CHỌN)."""
+    try:
+        for ud in list(device_state.keys()):
+            device_state.setdefault(ud, {})["pick"] = False
+            _update_tree_tick_for_udid(ud)
+        log("✅ Đã bỏ chọn toàn bộ thiết bị.")
+    except Exception as e:
+        log(f"⚠️ Lỗi khi bỏ chọn toàn bộ thiết bị: {e}")
+
+def phone_deselect_all_view():
+    """Bỏ chọn toàn bộ view (cột VIEW)."""
+    try:
+        for ud in list(device_state.keys()):
+            device_state.setdefault(ud, {})["view"] = False
+            _update_tree_tick_for_udid(ud)
+        log("✅ Đã bỏ chọn toàn bộ View.")
+    except Exception as e:
+        log(f"⚠️ Lỗi khi bỏ chọn toàn bộ View: {e}")
+
+def phone_select_selected_devices():
+    """Chọn (tick CHỌN) cho các thiết bị đang được bôi đen (selected)."""
+    try:
+        sel = phone_device_tree.selection()
+        if not sel:
+            log("ℹ️ Chưa bôi đen thiết bị nào để chọn.")
+            return
+        for ud in sel:
+            device_state.setdefault(ud, {})["pick"] = True
+            _update_tree_tick_for_udid(ud)
+        log(f"✅ Đã chọn {len(sel)} thiết bị đang bôi đen.")
+    except Exception as e:
+        log(f"⚠️ Lỗi khi chọn thiết bị đang bôi đen: {e}")
+
+# ------------------- Connect / Disconnect TCP/IP helpers -------------------
+def _resolve_device_ip(device_id: str) -> str | None:
+    """Cố gắng lấy IP của device (wlan0 hoặc ip route)."""
+    try:
+        ip_info = subprocess.check_output(
+            ["adb", "-s", device_id, "shell", "ip", "addr", "show", "wlan0"],
+            encoding="utf-8", errors="ignore"
+        )
+        lines = [line.strip() for line in ip_info.splitlines() if "inet " in line]
+        if lines:
+            return lines[0].split()[1].split("/")[0]
+    except Exception:
+        pass
+    try:
+        route_out = subprocess.check_output(
+            ["adb", "-s", device_id, "shell", "ip", "route"], encoding="utf-8", errors="ignore"
+        )
+        m = re.search(r"src\s+(\d+\.\d+\.\d+\.\d+)", route_out)
+        if m:
+            return m.group(1)
+    except Exception:
+        pass
+    return None
+
+def connect_tcp(device_id: str, port: int = 5555):
+    """Kết nối thiết bị adb qua TCP/IP (mặc định port=5555)."""
+    try:
+        ip = _resolve_device_ip(device_id)
+        if not ip:
+            raise Exception("Không tìm thấy IP (thiết bị chưa bật Wi-Fi?).")
+
+        subprocess.run(["adb", "-s", device_id, "tcpip", str(port)], check=True)
+        subprocess.run(["adb", "connect", f"{ip}:{port}"], check=True)
+        log(f"✅ Đã kết nối {device_id} qua {ip}:{port}")
+    except Exception as e:
+        log(f"❌ Kết nối TCP/IP thất bại cho {device_id}: {e}")
+
+def disconnect_tcp(device_id: str, port: int = 5555):
+    """Ngắt kết nối ADB TCP/IP cho thiết bị."""
+    try:
+        ip = _resolve_device_ip(device_id)
+        if ip:
+            subprocess.run(["adb", "disconnect", f"{ip}:{port}"], check=False)
+            subprocess.run(["adb", "disconnect", ip], check=False)
+            log(f"⛔ Đã ngắt kết nối {device_id} ({ip}:{port})")
+        else:
+            subprocess.run(["adb", "disconnect", device_id], check=False)
+            log(f"⛔ Đã gửi lệnh disconnect cho {device_id}")
+    except Exception as e:
+        log(f"⚠️ Ngắt TCP/IP thất bại cho {device_id}: {e}")
+
+# --- song song nhiều thiết bị (theo tick CHỌN) ---
+def phone_connect_tcp_prompt():
+    """Kết nối TCP/IP song song cho các thiết bị được tick (CHỌN)."""
+    try:
+        sel = get_checked_udids("pick")  # lấy danh sách tick CHỌN
+        if not sel:
+            messagebox.showinfo("TCP/IP", "Vui lòng tick (CHỌN) ít nhất 1 thiết bị trong danh sách.")
+            return
+
+        port = 5555
+        for ud in list(sel):
+            threading.Thread(target=connect_tcp, args=(ud, port), daemon=True).start()
+
+        log(f"🔌 Đang thực hiện kết nối TCP/IP cho {len(sel)} thiết bị ...")
+    except Exception as e:
+        log(f"⚠️ Lỗi phone_connect_tcp_prompt: {e}")
+
+def phone_disconnect_tcp():
+    """Ngắt kết nối TCP/IP song song cho các thiết bị được tick (CHỌN)."""
+    try:
+        sel = get_checked_udids("pick")
+        if not sel:
+            messagebox.showinfo("Disconnect TCP/IP", "Vui lòng tick (CHỌN) ít nhất 1 thiết bị trong danh sách.")
+            return
+
+        port = 5555
+        for ud in list(sel):
+            threading.Thread(target=disconnect_tcp, args=(ud, port), daemon=True).start()
+
+        log(f"⛔ Đang ngắt kết nối TCP/IP cho {len(sel)} thiết bị ...")
+    except Exception as e:
+        log(f"⚠️ Lỗi phone_disconnect_tcp: {e}")
+
+# Tạo Menu chuột phải (cập nhật các mục)
+phone_tree_menu = tk.Menu(app, tearoff=0)
+phone_tree_menu.add_command(label="✅ Chọn thiết bị đang bôi đen", command=phone_select_selected_devices)
+phone_tree_menu.add_command(label="✅ Chọn toàn bộ thiết bị", command=phone_select_all_devices)
+phone_tree_menu.add_command(label="✅ Chọn toàn bộ View", command=phone_select_all_view)
+phone_tree_menu.add_separator()
+phone_tree_menu.add_command(label="🔌 Connect TCP/IP (CHỌN)", command=phone_connect_tcp_prompt)
+phone_tree_menu.add_command(label="⛔ Disconnect TCP/IP (CHỌN)", command=phone_disconnect_tcp)
+phone_tree_menu.add_separator()
+phone_tree_menu.add_command(label="❌ Bỏ chọn toàn bộ Thiết bị", command=phone_deselect_all_devices)
+phone_tree_menu.add_command(label="❌ Bỏ chọn toàn bộ View", command=phone_deselect_all_view)
+phone_tree_menu.add_separator()
+phone_tree_menu.add_command(label="🔄 Refresh ADB Devices", command=refresh_adb_devices_table)
+phone_tree_menu.add_command(label="🛑 Kill ADB & Reload", command=lambda: threading.Thread(target=kill_adb_and_reload, daemon=True).start())
+phone_tree_menu.add_command(label="🗑️ Delete Pictures & Reboot (CHỌN)", command=lambda: threading.Thread(target=delete_pictures_and_reboot, daemon=True).start())
+def _show_phone_tree_menu(event):
+    try:
+        row = phone_device_tree.identify_row(event.y)
+        if row and row not in phone_device_tree.selection():
+            phone_device_tree.selection_set(row)
+        phone_tree_menu.tk_popup(event.x_root, event.y_root)
+    finally:
+        phone_tree_menu.grab_release()
+
+# Bind chuột phải (Windows/Linux) + fallback macOS middle button
+try:
+    phone_device_tree.bind("<Button-3>", _show_phone_tree_menu)
+    phone_device_tree.bind("<Button-2>", _show_phone_tree_menu)
+except Exception:
+    pass
+
+# ---- Thêm: Ctrl+A để chọn tất cả hàng trong Treeview ----
+def phone_select_all_rows(event=None):
+    try:
+        all_items = phone_device_tree.get_children()
+        phone_device_tree.selection_set(all_items)
+    except Exception:
+        pass
+    return "break"
+
+try:
+    phone_device_tree.bind("<Control-a>", phone_select_all_rows)
+    phone_device_tree.bind("<Control-A>", phone_select_all_rows)
 except Exception:
     pass
 
@@ -9240,16 +10160,230 @@ guide_label.pack(padx=20, pady=10, fill="both", expand=True)
 
 # ===== TAB 5: UTILITIES (TIỆN ÍCH) =====
 utilities_content = tk.Frame(app, bg="white")
-utilities_title = tk.Label(utilities_content, text="UTILITIES", 
-                           font=("ROG Fonts STRIX SCAR", 18, "bold"), bg="white", fg="black")
+utilities_title = tk.Label(
+    utilities_content, text="UTILITIES",
+    font=("ROG Fonts STRIX SCAR", 18, "bold"), bg="white", fg="black"
+)
 utilities_title.pack(pady=20)
 
-# Container cho các tiện ích
-utilities_container = tk.Frame(utilities_content, bg="white")
-utilities_container.pack(expand=True, fill="both", padx=40, pady=20)
+# ----- Scrollable frame -----
+util_canvas = tk.Canvas(utilities_content, bg="white", highlightthickness=0)
+util_scrollbar = tk.Scrollbar(utilities_content, orient="vertical", command=util_canvas.yview)
+util_frame = tk.Frame(util_canvas, bg="white")
+util_frame.bind("<Configure>", lambda e: util_canvas.configure(scrollregion=util_canvas.bbox("all")))
+util_canvas.create_window((0, 0), window=util_frame, anchor="nw")
+util_canvas.configure(yscrollcommand=util_scrollbar.set)
+util_canvas.pack(side="left", fill="both", expand=True, padx=20, pady=10)
+util_scrollbar.pack(side="right", fill="y")
 
-# Grid layout cho các nút tiện ích
-util_button_font = ("ROG Fonts STRIX SCAR", 11, "bold")
+# ----- LOG AREA -----
+tk.Label(
+    util_frame, text="📜 LOG OUTPUT",
+    font=("ROG Fonts STRIX SCAR", 14, "bold"),
+    bg="white", fg="black"
+).pack(anchor="w", pady=(0, 10))
+
+log_frame = tk.Frame(util_frame, bg="black", bd=2, relief="sunken")
+log_frame.pack(fill="both", expand=True)
+
+log_box = tk.Text(
+    log_frame, bg="black", fg="lime",
+    insertbackground="white", font=("Consolas", 10), wrap="word"
+)
+log_box.pack(fill="both", expand=True)
+
+def log_util(msg: str):
+    log_box.insert(tk.END, msg + "\n")
+    log_box.see(tk.END)
+
+# ======================= Pinterest Downloader =======================
+tk.Label(util_frame, text="Tải ảnh từ Pinterest", font=("ROG Fonts STRIX SCAR", 13, "bold"), bg="white", fg="black").pack(anchor="w", pady=(10,5))
+
+# ----- Đọc config -----
+def load_config():
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_config(data):
+    try:
+        with open("config.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+config = load_config()
+
+# ----- Email và mật khẩu -----
+row_email = tk.Frame(util_frame, bg="white"); row_email.pack(anchor="w", pady=2)
+tk.Label(row_email, text="Email:", bg="white").pack(side="left", padx=(0,5))
+pin_email_var = tk.StringVar(value=config.get("pinterest_email", ""))
+email_entry = ttk.Entry(row_email, textvariable=pin_email_var, width=40)
+email_entry.pack(side="left")
+
+row_pass = tk.Frame(util_frame, bg="white"); row_pass.pack(anchor="w", pady=2)
+tk.Label(row_pass, text="Mật khẩu:", bg="white").pack(side="left", padx=(0,5))
+pin_pass_var = tk.StringVar(value=config.get("pinterest_pass", ""))
+pass_entry = ttk.Entry(row_pass, textvariable=pin_pass_var, width=40, show="*")
+pass_entry.pack(side="left")
+
+# ----- Danh sách từ khóa Pinterest -----
+pinterest_keywords = [
+    "ảnh gái xinh", "girl cute", "hot girl dễ thương", "pretty girl portrait",
+    "asian beauty", "korean girl", "vietnamese girl", "japanese girl",
+    "chinese girl portrait", "fashion girl pose", "girl selfie", "smiling girl",
+    "outdoor portrait", "aesthetic girl", "street fashion girl",
+    "landscape photography", "mountain view", "beach sunset", "forest trail",
+    "night city lights", "tropical island", "sky clouds aesthetic", "flower garden",
+    "desert dunes", "winter snow view",
+    "minimalist art", "aesthetic wallpaper", "vintage film photo", "street photography",
+    "cyberpunk neon city", "coffee shop aesthetic", "interior design modern",
+    "workspace inspiration", "anime girl art", "digital painting portrait"
+]
+
+pin_url_var = tk.StringVar()
+
+# ----- Số lượng ảnh -----
+tk.Label(util_frame, text="Số lượng ảnh muốn lưu:", bg="white", font=("Consolas", 11)).pack(anchor="w", pady=(8,0))
+ava_count_var = tk.IntVar(value=30)
+ava_count_entry = ttk.Entry(util_frame, textvariable=ava_count_var, width=8)
+ava_count_entry.pack(anchor="w", pady=(0,8))
+
+# ----- Chọn thư mục lưu -----
+def select_ava_folder_util():
+    folder = filedialog.askdirectory(title="Chọn thư mục ảnh lưu Pinterest")
+    if folder:
+        config = load_config()
+        config["ava_folder_path"] = folder
+        save_config(config)
+        log_util(f"✅ Đã chọn thư mục lưu ảnh: {folder}")
+    else:
+        log_util("⚠️ Chưa chọn thư mục lưu ảnh.")
+
+# ----- Hàm tạo URL -----
+def build_pinterest_url(keyword):
+    from urllib.parse import quote
+    return f"https://www.pinterest.com/search/pins/?q={quote(keyword)}"
+
+# ----- Đăng nhập -----
+def pinterest_login(driver, email, password):
+    driver.get("https://www.pinterest.com/login/")
+    time.sleep(2)
+    try:
+        email_input = driver.find_element(By.NAME, "id")
+        email_input.send_keys(email)
+        driver.find_element(By.TAG_NAME, "button").click()
+        time.sleep(2)
+        pass_input = driver.find_element(By.NAME, "password")
+        pass_input.send_keys(password)
+        driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+        time.sleep(10)
+        # Skip popup nếu có
+        try:
+            skip = driver.find_element(By.XPATH, "//div[text()='Skip for now']")
+            skip.click()
+            log_util("➡️ Đã bỏ qua popup 'Skip for now'")
+        except Exception:
+            pass
+    except Exception as e:
+        log_util(f"⚠️ Lỗi đăng nhập: {e}")
+
+# ----- Lấy ảnh -----
+def collect_image_urls(driver, max_images=100, scroll_limit=30):
+    urls, seen = [], set()
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    scrolls = 0
+    while len(urls) < max_images and scrolls < scroll_limit:
+        imgs = driver.find_elements(By.TAG_NAME, "img")
+        for img in imgs:
+            src = img.get_attribute("src") or ""
+            if src and not src.startswith("data:") and src not in seen:
+                seen.add(src)
+                urls.append(src)
+                if len(urls) >= max_images:
+                    break
+        driver.execute_script("window.scrollBy(0, window.innerHeight);")
+        time.sleep(1.5)
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        scrolls = scrolls + 1 if new_height == last_height else 0
+        last_height = new_height
+    return urls[:max_images]
+
+def download_image(session, url, folder, idx):
+    try:
+        r = session.get(url, timeout=10, stream=True)
+        r.raise_for_status()
+        ext = os.path.splitext(urlparse(url).path)[1] or ".jpg"
+        path = os.path.join(folder, f"pinterest_{idx:04d}{ext}")
+        with open(path, "wb") as f:
+            for chunk in r.iter_content(8192):
+                f.write(chunk)
+        return True
+    except Exception:
+        return False
+
+# ----- Bắt đầu tải -----
+def start_pinterest_download():
+    email = pin_email_var.get().strip()
+    password = pin_pass_var.get().strip()
+    if not (email and password):
+        log_util("⚠️ Hãy nhập Email và Mật khẩu Pinterest.")
+        return
+
+    # Lưu lại email & pass
+    config = load_config()
+    config["pinterest_email"] = email
+    config["pinterest_pass"] = password
+    save_config(config)
+
+    # Random từ khóa
+    keyword = random.choice(pinterest_keywords)
+    url = build_pinterest_url(keyword)
+    pin_url_var.set(url)
+    log_util(f"\n🕒 Bắt đầu lúc: {time.strftime('%H:%M:%S')}")
+    log_util(f"🎯 Từ khóa ngẫu nhiên: {keyword}")
+    log_util(f"🔗 URL Pinterest: {url}")
+
+    folder = config.get("ava_folder_path", "")
+    if not folder or not os.path.isdir(folder):
+        log_util("⚠️ Chưa chọn thư mục lưu ảnh.")
+        return
+
+    max_images = ava_count_var.get()
+    log_util(f"🚀 Đang khởi động Chrome (Pinterest)...")
+
+    threading.Thread(target=_worker_pinterest, args=(email, password, url, max_images, folder), daemon=True).start()
+
+def _worker_pinterest(email, password, url, max_images, folder):
+    try:
+        from webdriver_manager.chrome import ChromeDriverManager
+        driver = se_webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=Options())
+        driver.maximize_window()
+        pinterest_login(driver, email, password)
+        driver.get(url)
+        log_util("🔍 Đang cuộn và thu thập ảnh...")
+        urls = collect_image_urls(driver, max_images=max_images)
+        driver.quit()
+        if not urls:
+            log_util("⚠️ Không tìm thấy ảnh.")
+            return
+        session = requests.Session()
+        total, ok = len(urls), 0
+        for i, link in enumerate(urls, 1):
+            log_util(f"⬇️ {i}/{total}: {link[:60]}...")
+            if download_image(session, link, folder, i):
+                ok += 1
+        log_util(f"🏁 Hoàn tất. Đã lưu {ok}/{total} ảnh vào {folder}")
+    except Exception as e:
+        log_util(f"❌ Lỗi: {e}")
+
+# ==== Nút điều khiển ====
+start_btn = ttk.Button(util_frame, text="Bắt đầu tải Pinterest", command=start_pinterest_download, width=26)
+start_btn.pack(pady=10)
+ava_btn = ttk.Button(util_frame, text="Ava Folder (Chọn Folder)", command=select_ava_folder_util, width=24)
+ava_btn.pack(pady=4)
 
 # ===== TAB 6: MENU =====
 menu_content = tk.Frame(app, bg="white")
